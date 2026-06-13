@@ -23,7 +23,6 @@ import {
   useManagerSummary,
   type CombinedEquity,
   type EquitySettlement,
-  type ManagerPnlPoint,
   type ManagerPositionRow,
   type OpenRange,
   type TradeLogRow,
@@ -56,226 +55,109 @@ function WarnChip({ label, error }: { label: string; error: string | null }) {
 }
 
 // ---------------------------------------------------------------------------
-// Equity curve — cumulative realized PnL staircase (axis style: SmileChart)
+// Equity curve — cumulative combined realized PnL on an index (cycle) x-axis.
+// Clean staircase from a 0 origin, a distinct zero line, gradient fill + glow,
+// and a glowing endpoint carrying the running total.
 // ---------------------------------------------------------------------------
 
-const EQ_W = 980;
-const EQ_H = 240;
-const EQ_ML = 64;
-const EQ_MR = 18;
-const EQ_MT = 16;
-const EQ_MB = 34;
-const EQ_IW = EQ_W - EQ_ML - EQ_MR;
-const EQ_IH = EQ_H - EQ_MT - EQ_MB;
+function EquityCurve({ points }: { points: readonly EquitySettlement[] }) {
+  const W = 980;
+  const H = 260;
+  const padL = 54;
+  const padR = 20;
+  const padT = 18;
+  const padB = 20;
+  const iw = W - padL - padR;
+  const ih = H - padT - padB;
 
-function hhmm(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number): string => (n < 10 ? `0${n}` : String(n));
-  return `${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** Build a step-after staircase path "M…L…" over {t,v} points, flattened to tEnd. */
-function staircasePath(
-  pts: readonly { t: number; v: number }[],
-  sx: (t: number) => number,
-  sy: (v: number) => number,
-  tEnd: number,
-): string {
-  const first = pts[0];
-  if (first === undefined) return '';
-  let d = `M${sx(first.t).toFixed(1)} ${sy(first.v).toFixed(1)}`;
-  let prevV = first.v;
-  for (const p of pts.slice(1)) {
-    d += `L${sx(p.t).toFixed(1)} ${sy(prevV).toFixed(1)}`;
-    d += `L${sx(p.t).toFixed(1)} ${sy(p.v).toFixed(1)}`;
-    prevV = p.v;
-  }
-  d += `L${sx(tEnd).toFixed(1)} ${sy(prevV).toFixed(1)}`;
-  return d;
-}
-
-function EquityCurve({
-  points,
-  server,
-  now,
-}: {
-  /** PRIMARY: combined realized (band + wings) per-settlement points */
-  points: readonly EquitySettlement[];
-  /** faint reference: server binaries-only cumulative series */
-  server: readonly ManagerPnlPoint[];
-  now: number;
-}) {
-  // combined realized PnL is event-driven → step-after staircase, extended to "now"
-  const pts = points.map((p) => ({ t: p.timestamp_ms, v: p.cumulative }));
-  const ref = server.map((p) => ({
-    t: p.timestamp_ms,
-    v: p.cumulative_realized_pnl / QTY_SCALING,
-  }));
-  const first = pts[0];
-  const last = pts[pts.length - 1];
-  if (first === undefined || last === undefined) {
+  // cumulative realized series, with a 0 origin prepended (index x-axis)
+  const values = points.length > 0 ? [0, ...points.map((p) => p.cumulative)] : [0];
+  if (values.length <= 1) {
     return <div className="empty">no realized PnL points yet</div>;
   }
-
-  // x window spans both series; y window covers both so the reference fits
-  const refFirst = ref[0];
-  const tMax = Math.max(last.t, ref[ref.length - 1]?.t ?? 0, now);
-  const tMinRaw = Math.min(first.t, refFirst?.t ?? first.t);
-  const tMin = tMinRaw === tMax ? tMinRaw - 60_000 : tMinRaw;
-  let vMin = 0;
-  let vMax = 0;
-  for (const p of pts) {
-    if (p.v < vMin) vMin = p.v;
-    if (p.v > vMax) vMax = p.v;
-  }
-  for (const p of ref) {
-    if (p.v < vMin) vMin = p.v;
-    if (p.v > vMax) vMax = p.v;
-  }
-  const vSpan = Math.max(vMax - vMin, 1e-9);
-  vMin -= 0.08 * vSpan;
-  vMax += 0.08 * vSpan;
-
-  const sx = (t: number): number => EQ_ML + ((t - tMin) / (tMax - tMin)) * EQ_IW;
-  const sy = (v: number): number => EQ_MT + EQ_IH - ((v - vMin) / (vMax - vMin)) * EQ_IH;
-
-  const d = staircasePath(pts, sx, sy, tMax);
-  const dRef = staircasePath(ref, sx, sy, tMax);
-  const prevV = last.v;
-  const up = prevV >= 0;
+  const dataMin = Math.min(...values);
+  const dataMax = Math.max(...values);
+  const pad = Math.max(1, (dataMax - dataMin) * 0.15);
+  const vMin = dataMin - pad;
+  const vMax = dataMax + pad;
+  const lastV = values[values.length - 1] ?? 0;
+  const up = lastV >= 0;
   const lineColor = up ? '#34e2a0' : '#ff5d76';
+  const n = values.length;
 
-  // area fill beneath the primary staircase, closed down to the zero baseline
-  // (or the chart floor when zero sits outside the visible window)
-  const floorV = vMin < 0 && vMax > 0 ? 0 : vMin;
-  const floorY = sy(floorV);
-  const xStart = sx(first.t);
-  const xEnd = sx(tMax);
-  const dArea =
-    d === ''
-      ? ''
-      : `${d}L${xEnd.toFixed(1)} ${floorY.toFixed(1)}L${xStart.toFixed(1)} ${floorY.toFixed(1)}Z`;
+  const xs = (i: number): number => padL + (n <= 1 ? 0 : (i / (n - 1)) * iw);
+  const sy = (v: number): number => padT + (1 - (v - vMin) / (vMax - vMin || 1)) * ih;
 
+  // crisp staircase: horizontal hold then vertical step at each settlement
+  let d = `M${xs(0).toFixed(1)} ${sy(values[0] ?? 0).toFixed(1)}`;
+  for (let i = 1; i < n; i++) {
+    d += `L${xs(i).toFixed(1)} ${sy(values[i - 1] ?? 0).toFixed(1)}L${xs(i).toFixed(1)} ${sy(values[i] ?? 0).toFixed(1)}`;
+  }
+  const floorV = vMin < 0 && vMax > 0 ? vMin : Math.min(0, vMin);
+  const dArea = `${d}L${xs(n - 1).toFixed(1)} ${sy(floorV).toFixed(1)}L${xs(0).toFixed(1)} ${sy(floorV).toFixed(1)}Z`;
   const yTicks = niceTicks(vMin, vMax, 5);
-  const span = vMax - vMin;
-  const yDp = span >= 100 ? 0 : span >= 5 ? 1 : span >= 0.5 ? 2 : 3;
-  // ~5 time ticks across the window
-  const xTicks: number[] = [];
-  for (let i = 0; i <= 4; i++) xTicks.push(tMin + ((tMax - tMin) * i) / 4);
 
   return (
     <svg
-      viewBox={`0 0 ${EQ_W} ${EQ_H}`}
+      viewBox={`0 0 ${W} ${H}`}
       className="chart"
       role="img"
-      aria-label="Cumulative combined realized PnL (band + wings) over time"
+      aria-label="Cumulative combined realized PnL (band + wings)"
     >
       <defs>
-        {/* luminous glow for the primary equity line + endpoint marker */}
-        <filter id="eq-glow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2.2" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
+        <filter id="eq-glow">
+          <feGaussianBlur stdDeviation="2.2" />
         </filter>
-        {/* signed area-fill gradient — green when up, red when down */}
-        <linearGradient id="eq-area-up" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#34e2a0" stopOpacity={0.18} />
-          <stop offset="100%" stopColor="#34e2a0" stopOpacity={0} />
-        </linearGradient>
-        <linearGradient id="eq-area-down" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ff5d76" stopOpacity={0.18} />
-          <stop offset="100%" stopColor="#ff5d76" stopOpacity={0} />
+        <linearGradient id="eq-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
         </linearGradient>
       </defs>
       {yTicks.map((t) => (
-        <g key={`y${t}`}>
-          <line x1={EQ_ML} x2={EQ_ML + EQ_IW} y1={sy(t)} y2={sy(t)} className="grid" />
-          <text x={EQ_ML - 8} y={sy(t) + 3.5} className="tick" textAnchor="end">
-            {fmtNum(t, yDp)}
+        <g key={t}>
+          <line
+            x1={padL}
+            x2={W - padR}
+            y1={sy(t)}
+            y2={sy(t)}
+            stroke={t === 0 ? '#3a4a78' : 'rgba(255,255,255,0.05)'}
+            strokeDasharray={t === 0 ? '4 4' : '2 5'}
+            strokeWidth={1}
+          />
+          <text x={padL - 8} y={sy(t) + 3.5} className="tick" textAnchor="end">
+            {t > 0 ? `+$${fmtNum(t, 0)}` : `$${fmtNum(t, 0)}`}
           </text>
         </g>
       ))}
-      {xTicks.map((t) => (
-        <g key={`x${t}`}>
-          <line x1={sx(t)} x2={sx(t)} y1={EQ_MT + EQ_IH} y2={EQ_MT + EQ_IH + 4} className="axis" />
-          <text x={sx(t)} y={EQ_MT + EQ_IH + 16} className="tick" textAnchor="middle">
-            {hhmm(t)}
-          </text>
-        </g>
-      ))}
-      <line x1={EQ_ML} x2={EQ_ML} y1={EQ_MT} y2={EQ_MT + EQ_IH} className="axis" />
-      <line x1={EQ_ML} x2={EQ_ML + EQ_IW} y1={EQ_MT + EQ_IH} y2={EQ_MT + EQ_IH} className="axis" />
-      <text x={EQ_ML} y={EQ_MT - 4} className="axis-label" textAnchor="start">
-        CUM REALIZED $
-      </text>
-      <text x={EQ_ML + EQ_IW} y={EQ_MT + EQ_IH + 32} className="axis-label" textAnchor="end">
-        TIME
-      </text>
-
-      {/* zero line */}
-      {vMin < 0 && vMax > 0 && (
-        <line x1={EQ_ML} x2={EQ_ML + EQ_IW} y1={sy(0)} y2={sy(0)} className="spark-zero" />
-      )}
-
-      {/* faint reference: server binaries-only series */}
-      {dRef !== '' && (
-        <path
-          d={dRef}
-          fill="none"
-          stroke="var(--dim)"
-          strokeWidth={1}
-          strokeDasharray="3 3"
-          opacity={0.5}
-        />
-      )}
-
-      {/* faint area fill beneath the primary track */}
-      {dArea !== '' && (
-        <path
-          d={dArea}
-          fill={`url(#${up ? 'eq-area-up' : 'eq-area-down'})`}
-          stroke="none"
-        />
-      )}
-
-      {/* PRIMARY: combined band + wings realized */}
+      <path d={dArea} fill="url(#eq-fill)" stroke="none" />
       <path
         d={d}
         fill="none"
         stroke={lineColor}
-        strokeWidth={2.2}
+        strokeWidth={1.2}
+        opacity={0.4}
+        filter="url(#eq-glow)"
+      />
+      <path
+        d={d}
+        fill="none"
+        stroke={lineColor}
+        strokeWidth={1.9}
         strokeLinejoin="round"
         strokeLinecap="round"
         vectorEffect="non-scaling-stroke"
-        filter="url(#eq-glow)"
       />
-      {/* glowing endpoint marker: faint outer ring + bright glowing dot */}
-      <circle
-        cx={sx(tMax)}
-        cy={sy(prevV)}
-        r={6}
-        fill="none"
-        stroke={lineColor}
-        strokeWidth={1}
-        opacity={0.35}
-      />
-      <circle
-        cx={sx(tMax)}
-        cy={sy(prevV)}
-        r={3}
-        fill={lineColor}
-        filter="url(#eq-glow)"
-      />
+      <circle cx={xs(n - 1)} cy={sy(lastV)} r={6} fill="none" stroke={lineColor} strokeWidth={1} opacity={0.4} />
+      <circle cx={xs(n - 1)} cy={sy(lastV)} r={5} fill={lineColor} filter="url(#eq-glow)" />
+      <circle cx={xs(n - 1)} cy={sy(lastV)} r={2.6} fill="#fff" />
       <text
-        x={sx(tMax) - 6}
-        y={sy(prevV) - 8}
+        x={xs(n - 1) - 10}
+        y={sy(lastV) - 11}
         className="tick"
         textAnchor="end"
-        style={{ fill: lineColor }}
+        style={{ fill: lineColor, fontWeight: 600 }}
       >
-        {prevV >= 0 ? '+' : '−'}${fmtNum(Math.abs(prevV), 3)}
+        {lastV >= 0 ? '+' : '−'}${fmtNum(Math.abs(lastV), 2)}
       </text>
     </svg>
   );
@@ -532,52 +414,65 @@ export function LadderTab() {
 
       {/* ---- equity curve ---- */}
       <div className="panel">
-        <div className="panel-head">
-          <span className="panel-title">
-            EQUITY · CUMULATIVE REALIZED PnL · BAND + WINGS
-          </span>
-          <WarnChip label="events" error={events.error} />
-          <WarnChip label="pnl" error={pnl.error} />
-          <span className="panel-meta dim">
-            {equity !== null ? `${equity.points.length} settlements` : ''}
-            {events.updatedAt !== null ? ` · updated ${fmtClock(events.updatedAt)}` : ''}
-          </span>
+        <div className="panel-head equity-head">
+          <div className="equity-titles">
+            <div className="eyebrow">EQUITY</div>
+            <div className="equity-title">CUMULATIVE REALIZED PnL</div>
+          </div>
+          <div className="equity-chips">
+            {equity !== null && (
+              <>
+                <span className="chip chip--ok">
+                  <span className="dot" /> combined{' '}
+                  <PnlVal x={equity.total} dp={2} />
+                </span>
+                <span className="chip chip--dim">
+                  band <PnlVal x={equity.band} dp={2} />
+                </span>
+                <span className="chip chip--dim">
+                  wings <PnlVal x={equity.wings} dp={2} />
+                </span>
+                <span className="chip chip--dim">
+                  {equity.points.length} cycles
+                </span>
+              </>
+            )}
+            <WarnChip label="events" error={events.error} />
+            <WarnChip label="pnl" error={pnl.error} />
+          </div>
         </div>
         {equity === null ? (
           <div className="empty">{bodyState(events, 'realized PnL')}</div>
         ) : (
           <>
-            <EquityCurve
-              points={equity.points}
-              server={pnl.data?.points ?? []}
-              now={now}
-            />
+            <EquityCurve points={equity.points} />
             <div className="chip-strip">
-              <span className="chip chip--dim">
-                combined realized <PnlVal x={equity.total} />
-              </span>
-              <span className="chip chip--dim">
-                band <PnlVal x={equity.band} /> · wings <PnlVal x={equity.wings} />
-              </span>
               {pnl.data !== null && (
                 <span className="chip chip--dim">
-                  binaries-only (server){' '}
+                  server binaries-only{' '}
                   <PnlVal
                     x={
                       (pnl.data.points[pnl.data.points.length - 1]
                         ?.cumulative_realized_pnl ?? 0) / QTY_SCALING
                     }
+                    dp={2}
                   />
                 </span>
               )}
+              <span className="chip chip--dim">
+                {equity.points.length} settlements
+                {events.updatedAt !== null
+                  ? ` · updated ${fmtClock(events.updatedAt)}`
+                  : ''}
+              </span>
             </div>
           </>
         )}
         <div className="note">
           combined realized PnL = Σ(payout − cost) per settlement over BOTH legs
           (range band + binary wings), reconstructed from on-chain redeem events ·
-          dashed line = server binaries-only series (excludes ranges) · staircase
-          extended to the latest poll
+          x-axis = settlement cycles · the server binaries-only series excludes
+          closed-range PnL, so combined runs above it
         </div>
       </div>
 

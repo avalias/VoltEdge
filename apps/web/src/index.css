@@ -411,6 +411,51 @@ body::after {
   font-size: 11px;
 }
 
+/* ---------- equity panel header (eyebrow + title + right pills) ---------- */
+
+.equity-head {
+  align-items: flex-end;
+  justify-content: space-between;
+  row-gap: 10px;
+}
+
+.equity-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.eyebrow {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.equity-title {
+  font-family: var(--sans);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text);
+  line-height: 1.05;
+}
+
+.equity-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.equity-chips .chip {
+  font-family: var(--mono);
+}
+
 .dim {
   color: var(--dim);
 }
