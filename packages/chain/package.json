@@ -1,0 +1,24 @@
+{
+  "name": "@voltedge/chain",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "mirror-difftest": "tsx scripts/mirror-difftest.ts",
+    "gen-wallet": "tsx scripts/gen-wallet.ts",
+    "faucet": "tsx scripts/faucet.ts"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.5.0",
+    "@voltedge/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

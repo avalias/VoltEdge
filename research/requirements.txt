@@ -1,0 +1,7 @@
+# Python deps for the VoltEdge research scripts (backtest, golden vectors,
+# charts). Python 3.11+. Install: pip install -r research/requirements.txt
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+requests>=2.31
+pillow>=10.0

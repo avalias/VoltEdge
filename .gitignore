@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+*.local
+__pycache__/
+.venv/
+*.pyc
+.DS_Store
+coverage/
+.turbo/
+*.log
+# Generated research outputs are ignored EXCEPT the JSON evidence files
+# that the docs cite as reproducible backing (use /* not / so the
+# negations below can re-include — git can't re-include under an
+# excluded directory).
+research/out/*
+!research/out/backtest_ladder.json
+!research/out/live_track.json
+!research/out/stale_vol_validation.json
+# Bot trading journal stays ignored — it grows continuously; live activity
+# is evidenced by on-chain txs (Suiscan links in README) + live_track.json.
