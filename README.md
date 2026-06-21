@@ -22,7 +22,7 @@ and an autonomous strategy trading on Sui testnet with on-chain receipts.**
 | Live execution matches the mirror | first live mint within **1e-6** of prediction ([tx](https://suiscan.xyz/testnet/tx/2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip)) |
 | The feed misprices the distribution's *shape* | mature-era backtest (n=2,369 of 2,620): ATM band hits **46.9%** vs **38.2%** implied → **+7.7%/$1 after spread** (t = 7.5); +6.7% (t=6.9) on the full sample |
 | Real protocol findings | cross-tier calendar arbitrage (live), settlement delays up to **8.7h**, SVI-staleness gate gap, indexer range-PnL blind spot |
-| Tests | **354** (core 332 + strategy 22), golden vectors from *independent routes* (scipy, finite differences, call-spread limits) |
+| Tests | **61 test definitions** parametrizing **~283 runtime cases** — 245 are golden-vector rows checked against *independent routes* (scipy CDF/PDF/inverse, finite-difference SVI derivatives, call-spread-limit digitals) |
 
 <div align="center">
 <img src="docs/charts/weekly_edge.png" width="640" alt="weekly edge" />
@@ -62,7 +62,7 @@ chain-clock calibration (local clocks lie; we measured +39.6s).
 ```bash
 npm install
 npm run dev            # the terminal, live against testnet
-npm test               # 332 core tests
+npm test               # core + strategy tests (61 defs, ~283 runtime cases)
 cd packages/chain && npx tsx scripts/mirror-difftest.ts   # the CLI proof
 ```
 

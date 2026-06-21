@@ -1,0 +1,28 @@
+name: CI
+
+# Gates correctness on every push/PR — distinct from deploy.yml (which only
+# builds apps/web for Pages). The core suite now includes the OFFLINE bit-exact
+# mirror golden (packages/core/tests/mirror_chain.test.ts), so the flagship
+# "0 units vs the live chain" claim is regression-proof without a testnet.
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm test # core (incl. offline mirror golden) + strategy
+      - run: npm run typecheck -w packages/core -w packages/chain -w packages/strategy
+      - run: npm run build -w apps/web # tsc -b + vite build
+
+# Move package tests run manually (the attestor links against the live Predict
+# protocol sources, which live in the vendored checkout, not this repo):
+#   cd packages/move/voltedge_attestor && sui move test --gas-limit 100000000000
+# See packages/move/voltedge_attestor/README.md.

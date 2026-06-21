@@ -34,7 +34,7 @@ const client = getClient();
 
 function leU64(bytes: number[]): bigint {
   let v = 0n;
-  for (let i = bytes.length - 1; i >= 0; i--) v = (v << 8n) | BigInt(bytes[i]);
+  for (let i = bytes.length - 1; i >= 0; i--) v = (v << 8n) | BigInt(bytes[i]!);
   return v;
 }
 

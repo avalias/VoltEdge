@@ -7,6 +7,16 @@
 > names a planned file (`quotes.ts`, `edge.ts`) the shipped equivalent lives
 > in `svi.ts` / `fixedpoint.ts` / `mc.ts`; the strategy lives in
 > `packages/strategy` (`wings.ts`, `runner.ts`, `journal.ts`, `chainclock.ts`).
+>
+> **The strategy also pivoted.** This doc describes a *range-ladder* with
+> *fractional-Kelly, slippage-aware* sizing (default `c=1.0`). What shipped is a
+> **barbell** — an ATM `mint_range` band (`c=0.5`) plus two far-wing binaries —
+> with **fixed-face** sizing ($8 band / $1×2 wings), not Kelly. The backtest is
+> **2,620 filtered cycles** (not "3,800+"). `mc_validate.py` is *not* shipped:
+> the MC engine is checked against its own lognormal (`mc.test.ts`), not an
+> independent scipy route — that cross-check is a known gap (see
+> `research/sim_report.md` limitations). Test counts: **61 definitions / ~283
+> runtime cases** (see README), not "320".
 
 **Quant terminal for DeepBook Predict.** Live SVI volatility surface with no-arbitrage
 monitoring, PLP vault risk analytics with Monte-Carlo scenario simulation, a

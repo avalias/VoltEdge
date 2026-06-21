@@ -18,9 +18,9 @@ bot console for our PredictManager).
 ## Test suites
 
 ```bash
-npm test                                   # core 332 + strategy 22 tests (golden vectors
+npm test                                   # 61 test defs / ~283 runtime cases (golden vectors
                                            # vs scipy / finite differences)
-npx vitest run --root packages/strategy    # barbell decision logic + journal
+npm test -w packages/strategy              # barbell decision logic + journal
 ```
 
 ## The flagship correctness proof (live, read-only)
