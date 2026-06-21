@@ -1,0 +1,15 @@
+[package]
+name = "voltedge_attestor"
+edition = "2024.beta"
+version = "0.0.1"
+
+# Built against the live DeepBook Predict protocol. For local build, the
+# deepbook + deepbook_predict sources sit alongside this package (siblings in
+# the protocol's packages/ workspace); for publish, they link to their
+# already-deployed testnet addresses.
+[dependencies]
+deepbook_predict = { local = "../predict" }
+deepbook = { local = "../deepbook" }
+
+[addresses]
+voltedge_attestor = "0x0"

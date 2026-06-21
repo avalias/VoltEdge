@@ -56,13 +56,15 @@ independent routes (scipy, finite differences, call-spread limits).
 ## Links
 
 - GitHub: https://github.com/avalias/VoltEdge
-- Demo video: (YouTube ≤5 min — TODO)
-- Live site: (public URL — GitHub Pages, TODO when repo is up)
+- Demo video: ≤5 min, recorded (voiced) — upload to YouTube, paste link
+- Live site: https://avalias.github.io/VoltEdge/ (live, verified)
 - Walrus Sites object (testnet, 45 epochs):
   `0xd8552738ac4e9f0da79d1730b9ef531e238634af3ead8c810207d5e6e0c695fd`
   (wal.app portal serves mainnet only; testnet sites need a self-hosted
   portal — the on-chain site object is the deployment proof)
 - Deployment proof (Sui testnet):
+  - **`voltedge_attestor` package `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d`** (publish tx `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU`)
+  - on-chain `FairPriceAttested` event `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq`
   - PredictManager `0xe2ad1c2a75a5f4798a2ef38bdc8bc53a6084d03503cdb84baffd1f0c03861cc3`
   - first barbell mint `2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip`
   - settlement sweep `2i49HrGQ6qVtTZxVQXb9KTQj1g5XKDXuTkBVJeJCNVWy`
@@ -72,7 +74,11 @@ independent routes (scipy, finite differences, call-spread limits).
 
 - Logo: `docs/logo.png` (1024×1024)
 - Deployment: Testnet
-- Package ID: integrates official Predict package
-  `0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138`
-  (no custom Move package — the product is the terminal + executor; all
-  on-chain activity is verifiable through the manager id above)
+- Package ID (our deployed Move package):
+  `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d`
+  — `voltedge_attestor`: re-derives the binary price N(d2) **on-chain** using
+  the protocol's OWN public math primitives (`math::normal_cdf/ln/sqrt`, `i64`),
+  an op-for-op transcription of the protocol's private `oracle::compute_nd2`, and
+  emits a `FairPriceAttested` event. **Verified bit-exact (22/22, 0 units)**
+  against our TS mirror on live oracles. Built on the official Predict package
+  `0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138`.
