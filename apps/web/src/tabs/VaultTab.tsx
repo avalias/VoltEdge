@@ -6,8 +6,9 @@
  *
  * Below it: the Monte-Carlo fan. Books reconstructed from indexer events for
  * the nearest 8 oracles (lib/vaultBook.ts) are settled jointly by
- * simulateVault (@voltedge/core mc.ts — rank-1 comonotone driver, seeded,
- * 20k antithetic paths) against the live vault balance.
+ * simulateVault (@voltedge/core mc.ts — skew-aware smile-implied terminal
+ * density, rank-1 comonotone driver, seeded, 20k antithetic paths) against the
+ * live vault balance.
  */
 
 import { useMemo } from 'react';
@@ -171,7 +172,7 @@ function McFanPanel({ v, books, sim }: McFanPanelProps) {
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">
-          MONTE-CARLO FAN · JOINT SETTLEMENT · {MC_PATHS / 1000}K PATHS
+          MONTE-CARLO FAN · SKEW-AWARE · JOINT SETTLEMENT · {MC_PATHS / 1000}K PATHS
         </span>
         <span className="panel-meta dim">
           {books.books.length} books · {levels} levels · {ranges} ranges
@@ -241,14 +242,15 @@ function McFanPanel({ v, books, sim }: McFanPanelProps) {
             </div>
           </div>
           <div className="note">
-            joint-model caveat (mc.ts): “one common standard-normal driver per path
-            (rank-1 / comonotone across expiries) … for sub-hour horizons the rank-1
-            approximation is conservative for tail risk (perfect dependence concentrates
-            losses)” — documented limitation: it ignores decorrelation between expiry
-            times. S_i = F_i·exp(√w_i(0)·z − w_i(0)/2) with ATM total variance as the
-            diffusion scale · {MC_PATHS.toLocaleString('en-US')} antithetic paths,
-            deterministic seed {MC_SEED} · books refresh every 60 s, re-centered on the
-            5 s slice polls
+            skew-aware terminal density: each S_i is drawn from the FULL
+            smile-implied risk-neutral CDF F(K) = 1 − P_up^smile(K) (inverse-CDF,
+            not a single ATM vol), well-defined exactly when the slice is
+            butterfly-arb-free (g(k) ≥ 0 — see No-Arb) · one common uniform per
+            path ⇒ rank-1 / comonotone across expiries (conservative for tail
+            risk; ignores expiry-time decorrelation) · {MC_PATHS.toLocaleString('en-US')}{' '}
+            antithetic paths, deterministic seed {MC_SEED} · cross-checked against
+            an independent analytic route (research/mc_validate.py) · books refresh
+            every 60 s, re-centered on the 5 s slice polls
           </div>
         </>
       )}
@@ -268,7 +270,7 @@ export function VaultTab({ vault, books }: VaultTabProps) {
     if (v === null || books.books.length === 0) return null;
     const balance = v.vault_balance / QTY_SCALING;
     return {
-      mc: simulateVault(books.books, balance, MC_PATHS, MC_SEED),
+      mc: simulateVault(books.books, balance, MC_PATHS, MC_SEED, 'skew'),
       balance,
       exactMax: books.books.reduce((s, b) => s + maxPayout(b), 0),
     };

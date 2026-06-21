@@ -4,9 +4,16 @@ import {
   maxPayout,
   payoutAtSettle,
   simulateVault,
+  smileTerminalPrice,
   type OracleBook,
 } from '../src/mc.js';
-import { digitalUpTotalVar, type SviParams } from '../src/svi.js';
+import {
+  digitalUpSmile,
+  digitalUpTotalVar,
+  totalVariance,
+  type SviParams,
+} from '../src/svi.js';
+import { normCdf } from '../src/gaussian.js';
 
 const PARAMS: SviParams = { a: 1.2e-5, b: 4.0e-4, rho: -0.15, m: 0, sigma: 0.012 };
 const FWD = 63_000;
@@ -100,12 +107,12 @@ describe('simulateVault', () => {
     expect(a.meanPayout).toBe(b.meanPayout);
   });
 
-  it('mean payout converges to model probability for a single digital', () => {
-    // book: 100 UP at strike K. E[payout] = 100 * P(S > K) under the same
-    // lognormal the simulator draws from = digitalUpTotalVar at k.
+  it('ATM mean payout converges to the ATM lognormal probability', () => {
+    // book: 100 UP at strike K. Under 'atm' the simulator draws from the ATM
+    // lognormal, so E[payout] = 100 * digitalUpTotalVar at k (≈ atm at small k).
     const K = 63_100;
     const book = mkBook([[K, 100, 0]]);
-    const res = simulateVault([book], 1_000_000, 200_000, 11);
+    const res = simulateVault([book], 1_000_000, 200_000, 11, 'atm');
     const k = Math.log(K / FWD);
     const pModel = digitalUpTotalVar(PARAMS, k);
     // MC se ~ 100*sqrt(p(1-p)/n) ~ 0.1; antithetic tightens it further
@@ -121,6 +128,67 @@ describe('simulateVault', () => {
       [[62900, 63100, 25]],
     );
     const res = simulateVault([book], 1_000, 20_000, 3);
+    expect(res.worstPayout).toBeLessThanOrEqual(maxPayout(book) + 1e-9);
+  });
+});
+
+describe('skew-aware simulateVault', () => {
+  it('is deterministic given a seed', () => {
+    const book = mkBook([[63000, 100, 50]]);
+    const a = simulateVault([book], 10_000, 5_000, 7, 'skew');
+    const b = simulateVault([book], 10_000, 5_000, 7, 'skew');
+    expect(a.quantiles.p50).toBe(b.quantiles.p50);
+    expect(a.meanPayout).toBe(b.meanPayout);
+  });
+
+  it('smileTerminalPrice inverts the smile digital CDF (F(S)=u)', () => {
+    // For u in (0,1): digitalUpSmile at k=ln(S/F) must equal 1-u to the bisection
+    // tolerance, i.e. P(S > K) reproduces the sampled CDF quantile.
+    for (const u of [0.05, 0.2, 0.5, 0.8, 0.95]) {
+      const s = smileTerminalPrice(PARAMS, FWD, u);
+      const k = Math.log(s / FWD);
+      expect(Math.abs(digitalUpSmile(PARAMS, k) - (1 - u))).toBeLessThan(1e-6);
+    }
+  });
+
+  it('skew mean payout converges to the smile digital probability', () => {
+    // Under 'skew' the simulator draws S ~ F(S)=1-digitalUpSmile, so for a
+    // single UP digital at K, E[payout] = 100 * digitalUpSmile(k) — the TRUE
+    // risk-neutral P(S > K), distinct from the ATM/sticky-strike quote.
+    const K = 63_400;
+    const book = mkBook([[K, 100, 0]]);
+    const res = simulateVault([book], 1_000_000, 200_000, 11, 'skew');
+    const k = Math.log(K / FWD);
+    const pSmile = digitalUpSmile(PARAMS, k);
+    expect(Math.abs(res.meanPayout - 100 * pSmile)).toBeLessThan(0.35);
+  });
+
+  it('skew terminal density departs from the ATM lognormal on a skewed slice', () => {
+    // The smile correction is genuinely SECOND-order for the tightest sub-hour
+    // slices; it becomes first-order when vol and skew are large (longer
+    // horizon / steeper rho) — exactly the regime where vault tail risk lives.
+    const skewed: SviParams = { a: 4e-4, b: 2.5e-3, rho: -0.4, m: 0, sigma: 0.05 };
+    const fwd = 63_000;
+    const sw0 = Math.sqrt(totalVariance(skewed, 0));
+    const K = 66_000;
+    const k = Math.log(K / fwd);
+    const pSkew = digitalUpSmile(skewed, k);
+    const pAtm = normCdf(-(k / sw0 + sw0 / 2)); // ATM-lognormal digital
+    expect(Math.abs(pSkew - pAtm)).toBeGreaterThan(5e-4);
+    // the skew sampler reproduces its OWN digital at that strike
+    const s = smileTerminalPrice(skewed, fwd, 1 - pSkew);
+    expect(Math.abs(Math.log(s / fwd) - k)).toBeLessThan(1e-4);
+  });
+
+  it('worst payout never exceeds book max payout (skew)', () => {
+    const book = mkBook(
+      [
+        [62800, 40, 10],
+        [63000, 100, 50],
+      ],
+      [[62900, 63100, 25]],
+    );
+    const res = simulateVault([book], 1_000, 20_000, 3, 'skew');
     expect(res.worstPayout).toBeLessThanOrEqual(maxPayout(book) + 1e-9);
   });
 });

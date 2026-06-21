@@ -12,11 +12,12 @@
 > *fractional-Kelly, slippage-aware* sizing (default `c=1.0`). What shipped is a
 > **barbell** — an ATM `mint_range` band (`c=0.5`) plus two far-wing binaries —
 > with **fixed-face** sizing ($8 band / $1×2 wings), not Kelly. The backtest is
-> **2,620 filtered cycles** (not "3,800+"). `mc_validate.py` is *not* shipped:
-> the MC engine is checked against its own lognormal (`mc.test.ts`), not an
-> independent scipy route — that cross-check is a known gap (see
-> `research/sim_report.md` limitations). Test counts: **61 definitions / ~283
-> runtime cases** (see README), not "320".
+> **2,620 filtered cycles** (not "3,800+"). The MC engine is now **skew-aware**
+> (samples the full smile-implied terminal density, not a single ATM vol) and
+> `mc_validate.py` **is** shipped: an independent scipy route computes the exact
+> payout distribution analytically and the TS MC matches it within MC error
+> (means within a few s.e., quantiles exact). Test counts: **61 definitions /
+> ~283 runtime cases** (see README), not "320".
 
 **Quant terminal for DeepBook Predict.** Live SVI volatility surface with no-arbitrage
 monitoring, PLP vault risk analytics with Monte-Carlo scenario simulation, a
@@ -158,10 +159,11 @@ research/        — Python: golden vectors, backtest, MC sim report
   bounds) — each check states the exact inequality it verifies.
 - **Edge Heatmap**: (protocol N(d2) − smile-consistent digital) ± spread per
   strike — where the vault systematically misquotes; live updates.
-- **Vault Risk**: `/vault/summary` snapshot + **MC fan chart**: simulate BTC
-  paths over the open expiry set (vol from live SVI), revalue the vault's
-  StrikeMatrix exposure → distribution of LP PnL, P(util > 80%),
-  `available_withdrawal` stress. ±5σ what-if slider.
+- **Vault Risk**: `/vault/summary` snapshot + **skew-aware MC fan chart**:
+  simulate BTC paths over the open expiry set by drawing each terminal price
+  from the FULL smile-implied risk-neutral CDF (inverse-CDF, not a single ATM
+  vol), revalue the vault's StrikeMatrix exposure → distribution of LP PnL,
+  P(util > 80%), `available_withdrawal` stress.
 - **Ladder Console**: manager positions/PnL (from indexer + journal), roll
   history, live quotes.
 - Hosting: Walrus Sites (static build) — Sui-stack depth bonus.
@@ -171,7 +173,9 @@ research/        — Python: golden vectors, backtest, MC sim report
 - `backtest.py` — replay historical settlements + SVI (full `/oracles` history,
   3800+ settled 15m cycles) through the ladder policy grid → equity curves,
   Sharpe, drawdown, sensitivity to c (strike width) and Kelly fraction.
-- `mc_validate.py` — cross-check the TS MC engine against scipy (CRN paired).
+- `mc_validate.py` — DONE: independent scipy route computes the EXACT analytic
+  payout distribution (no sampling, FD call-spread digital) and asserts the TS
+  skew-aware MC reproduces it within MC error (quantiles exact).
 - `sim_report.md` — the qualification artifact ("proper simulation result").
 
 ## 4. Validation methodology (the differentiator)

@@ -14,14 +14,31 @@
  * conservative for tail risk (perfect dependence concentrates losses).
  * Documented limitation: it ignores decorrelation between expiry times.
  *
- *   S_i = F_i * exp(sw_i * z - sw_i^2 / 2),  sw_i = sqrt(w_i(0))
+ * Two terminal-density models (selectable; both comonotone across expiries):
  *
- * (ATM total variance as the diffusion scale; smile-shaped re-pricing of
- * the terminal density is second-order for vault payout bands.)
+ *   'skew' (default) — sample S from the FULL smile-implied risk-neutral
+ *     distribution by inverting the true digital CDF F(K) = 1 − P_up^smile(K),
+ *     where P_up^smile is the Breeden-Litzenberger / call-spread digital
+ *     (digitalUpSmile: N(d2) − n(d2)·w'(k)/2√w). This honours the skew that a
+ *     single ATM vol erases — and is well-defined exactly when the slice is
+ *     butterfly-arb-free (g(k) ≥ 0), which the no-arb attestor verifies.
+ *
+ *   'atm' — lognormal with ATM total variance as the diffusion scale:
+ *     S_i = F_i * exp(sw_i * z − sw_i^2 / 2),  sw_i = sqrt(w_i(0)).
+ *     Kept as the conservative comonotone baseline and the cross-check anchor.
+ *
+ * Both are driven by ONE common uniform per path (rank-1 / comonotone across
+ * expiries); for sub-hour horizons the rank-1 approximation is conservative
+ * for tail risk. Documented limitation: it ignores decorrelation between
+ * expiry times.
+ *
+ * Cross-validated against an independent analytic route (research/mc_validate.py:
+ * the payout step function integrated against the smile-implied segment
+ * probabilities — exact, no sampling).
  */
 
 import { normInv } from './gaussian.js';
-import { totalVariance, type SviParams } from './svi.js';
+import { digitalUpSmile, totalVariance, type SviParams } from './svi.js';
 
 export interface BookLevel {
   strike: number; // dollars
@@ -149,8 +166,33 @@ export interface McResult {
   pOver80pct: number;
 }
 
+export type McModel = 'atm' | 'skew';
+
 /**
- * Simulate joint settlement of all open books.
+ * Smile-implied terminal price: the settlement price S whose risk-neutral CDF
+ * value equals `u`, i.e. F(S) = 1 − digitalUpSmile(k(S)) = u. Inverts the FULL
+ * smile (skew-aware), so the sampled terminal density matches the slice's own
+ * digital prices at every strike — not just at the money.
+ *
+ * digitalUpSmile is monotone-decreasing in k when the slice is butterfly-arb-
+ * free (g(k) ≥ 0), so the bisection is well-posed; the bracket k ∈ [−3, 3]
+ * (S ∈ [F·e^−3, F·e^3]) dwarfs any sub-hour settlement move.
+ */
+export function smileTerminalPrice(params: SviParams, forward: number, u: number): number {
+  const target = 1 - clampU(u); // want digitalUpSmile(k) == P(S > K) == target
+  let lo = -3;
+  let hi = 3;
+  for (let it = 0; it < 64; it++) {
+    const mid = (lo + hi) / 2;
+    // decreasing in k: value above target ⇒ k too small ⇒ move the floor up
+    if (digitalUpSmile(params, mid) > target) lo = mid;
+    else hi = mid;
+  }
+  return forward * Math.exp((lo + hi) / 2);
+}
+
+/**
+ * Simulate joint settlement of all open books under `model` (default 'skew').
  * Deterministic given `seed` (mulberry32) — results are reproducible.
  */
 export function simulateVault(
@@ -158,6 +200,7 @@ export function simulateVault(
   balance: number,
   nPaths = 20_000,
   seed = 42,
+  model: McModel = 'skew',
 ): McResult {
   const rand = mulberry32(seed);
   const sws = books.map((b) => {
@@ -167,14 +210,16 @@ export function simulateVault(
   const payouts = new Float64Array(nPaths);
   let prevU = 0.5;
   for (let p = 0; p < nPaths; p++) {
-    // antithetic pairs for variance reduction
+    // antithetic pairs for variance reduction; ONE common u ⇒ comonotone
     const u = p % 2 === 0 ? (prevU = rand()) : 1 - prevU;
     const z = normInv(clampU(u));
     let total = 0;
     for (let i = 0; i < books.length; i++) {
       const b = books[i]!;
-      const sw = sws[i]!;
-      const s = b.forward * Math.exp(sw * z - (sw * sw) / 2);
+      const s =
+        model === 'skew'
+          ? smileTerminalPrice(b.params, b.forward, u)
+          : b.forward * Math.exp(sws[i]! * z - (sws[i]! * sws[i]!) / 2);
       total += payoutAtSettle(b, s);
     }
     payouts[p] = total;

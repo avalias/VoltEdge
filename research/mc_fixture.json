@@ -1,0 +1,108 @@
+{
+  "balance": 600,
+  "nPaths": 400000,
+  "seed": 20260622,
+  "model": "skew",
+  "books": [
+    {
+      "oracleId": "0xfix0",
+      "forward": 63000,
+      "params": {
+        "a": 0.000012,
+        "b": 0.0004,
+        "rho": -0.15,
+        "m": 0,
+        "sigma": 0.012
+      },
+      "levels": [
+        {
+          "strike": 62700,
+          "qUp": 80,
+          "qDn": 30
+        },
+        {
+          "strike": 63000,
+          "qUp": 120,
+          "qDn": 60
+        },
+        {
+          "strike": 63300,
+          "qUp": 40,
+          "qDn": 90
+        }
+      ],
+      "ranges": [
+        {
+          "lower": 62800,
+          "higher": 63200,
+          "q": 50
+        }
+      ]
+    },
+    {
+      "oracleId": "0xfix1",
+      "forward": 63050,
+      "params": {
+        "a": 0.00003,
+        "b": 0.0009,
+        "rho": -0.45,
+        "m": -0.004,
+        "sigma": 0.02
+      },
+      "levels": [
+        {
+          "strike": 62500,
+          "qUp": 60,
+          "qDn": 20
+        },
+        {
+          "strike": 63100,
+          "qUp": 150,
+          "qDn": 40
+        }
+      ],
+      "ranges": []
+    },
+    {
+      "oracleId": "0xfix2",
+      "forward": 63100,
+      "params": {
+        "a": 0.0004,
+        "b": 0.0025,
+        "rho": -0.4,
+        "m": 0,
+        "sigma": 0.05
+      },
+      "levels": [
+        {
+          "strike": 64000,
+          "qUp": 100,
+          "qDn": 25
+        }
+      ],
+      "ranges": [
+        {
+          "lower": 62000,
+          "higher": 64500,
+          "q": 70
+        }
+      ]
+    }
+  ],
+  "mc": {
+    "nPaths": 400000,
+    "quantiles": {
+      "p01": -120,
+      "p05": -70,
+      "p25": -45,
+      "p50": 65,
+      "p75": 125,
+      "p95": 335,
+      "p99": 335
+    },
+    "meanPayout": 510.833875,
+    "worstPayout": 720,
+    "pPayoutOverBalance": 0.2936725,
+    "pOver80pct": 0.50211
+  }
+}

@@ -59,6 +59,9 @@ python analyze_journal.py
   2,620-cycle backtest with era forensics, the barbell result).
 - Reproduce: `python fetch_history.py` (resumable, ~30 min full) then
   `python backtest_ladder.py`.
+- MC cross-check: `npx tsx packages/chain/scripts/dump-mc-fixture.ts` (writes
+  `research/mc_fixture.json`) then `python research/mc_validate.py` — asserts the
+  skew-aware TS MC matches the independent analytic payout distribution.
 
 ## One-time chain bootstrap (already done for our deployment)
 
