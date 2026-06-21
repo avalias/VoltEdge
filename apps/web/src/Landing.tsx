@@ -247,8 +247,8 @@ function PillarsSection({ slices, realized }: { slices: number; realized: number
       icon: <IconRadar />,
       title: 'Mispricing Radar',
       twin: 'catches prices that break the rules of math',
-      body: 'Flags prices that look wrong or break the basic rules of math — and it has already caught real ones on the live feed.',
-      mini: <span style={{ color: 'var(--violet)' }}>● 3 real issues caught</span>,
+      body: 'Flags prices that look wrong or break the basic rules of math — it has already caught real ones on the live feed, and now runs that very check on-chain, leaving a permanent public receipt.',
+      mini: <span style={{ color: 'var(--violet)' }}>● 3 caught · ⛓ checked on-chain</span>,
     },
     {
       icon: <IconBot />,
@@ -266,8 +266,8 @@ function PillarsSection({ slices, realized }: { slices: number; realized: number
       icon: <IconShield />,
       title: 'Safety Net',
       twin: 'protects the people who fund the market',
-      body: 'Stress-tests the community vault (PLP) across 20,000 simulated price paths so the people funding the market stay protected.',
-      mini: <span style={{ color: 'var(--violet)' }}>20,000 paths simulated</span>,
+      body: "Stress-tests the community vault (PLP) across 20,000 simulated price paths — shaped to the market's real, lopsided risk rather than a textbook bell curve — so the people funding the market stay protected.",
+      mini: <span style={{ color: 'var(--violet)' }}>20,000 skew-aware paths</span>,
     },
   ];
   return (
