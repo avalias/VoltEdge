@@ -66,6 +66,8 @@ inverse, finite-difference SVI derivatives, call-spread-limit digitals).
 - Deployment proof (Sui testnet):
   - **`voltedge_attestor` package `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d`** (publish tx `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU`)
   - on-chain `FairPriceAttested` event `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq`
+  - **upgraded package `0x0e77ebf4667b4751dd0df2dbf9188576d5eaab278581ffaec176fbe5e438935a`** (upgrade tx `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU`) — adds the on-chain no-arb check (Gatheral `g(k)`)
+  - on-chain `ArbitrageFlagged` event `21Ai22Nyc1meCxykNkRLjc2GHDV4hALYxqjB5EWkqf8s`
   - PredictManager `0xe2ad1c2a75a5f4798a2ef38bdc8bc53a6084d03503cdb84baffd1f0c03861cc3`
   - first barbell mint `2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip`
   - settlement sweep `2i49HrGQ6qVtTZxVQXb9KTQj1g5XKDXuTkBVJeJCNVWy`
@@ -81,5 +83,10 @@ inverse, finite-difference SVI derivatives, call-spread-limit digitals).
   the protocol's OWN public math primitives (`math::normal_cdf/ln/sqrt`, `i64`),
   an op-for-op transcription of the protocol's private `oracle::compute_nd2`, and
   emits a `FairPriceAttested` event. **Verified bit-exact (22/22, 0 units)**
-  against our TS mirror on live oracles. Built on the official Predict package
+  against our TS mirror on live oracles. The upgraded package
+  `0x0e77ebf4667b4751dd0df2dbf9188576d5eaab278581ffaec176fbe5e438935a` adds an
+  **on-chain no-arbitrage check** — Gatheral's butterfly density `g(k)`
+  recomputed on-chain (the protocol stores SVI but never checks it for arb),
+  emitting `ArbitrageFlagged`; **verified bit-exact (32/32, 0 units, signs match)**.
+  Built on the official Predict package
   `0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138`.

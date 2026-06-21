@@ -113,5 +113,123 @@ fun compute_nd2_oracle(oracle: &OracleSVI, strike: u64): u64 {
     )
 }
 
+// === On-chain no-arbitrage: Gatheral g(k) ===
+//
+// g(k) = (1 - k*w'/(2w))^2 - (w'^2/4)*(1/w + 1/4) + w''/2
+//
+// The risk-neutral density is proportional to g(k); g(k) < 0 means the live
+// SVI slice admits static (butterfly) arbitrage at log-moneyness k. The
+// protocol stores SVI params but never computes g on-chain — this is
+// VoltEdge's no-arb watchdog, anchored on-chain, an op-for-op transcription of
+// @voltedge/core `fixedpoint.ts::gFunctionFixed` over the protocol's own math.
+
+const EZeroGVariance: u64 = 6;
+
+/// Emitted when g(k) is computed on-chain for (oracle, strike). `g_negative`
+/// true means the slice admits butterfly arbitrage at that strike — a
+/// permanent, auditable on-chain record from VoltEdge's no-arb monitor.
+public struct ArbitrageFlagged has copy, drop {
+    oracle_id: ID,
+    strike: u64, // 1e9 fixed
+    k_magnitude: u64, // |ln(strike/forward)|, 1e9 fixed
+    k_negative: bool,
+    g_magnitude: u64, // |g(k)|, 1e9 fixed
+    g_negative: bool, // true => butterfly arbitrage present
+    checker_version: u16,
+}
+
+/// Compute g(k) for `strike` (k = ln(strike/forward)) from the live SVI and
+/// emit ArbitrageFlagged with the sign. Composable in a PTB.
+public fun attest_no_arb(oracle: &OracleSVI, strike: u64) {
+    assert!(oracle.forward_price() > 0, EZeroForward);
+    let k = predict_math::ln(math::div(strike, oracle.forward_price()));
+    let g = g_for_strike(oracle, strike);
+    event::emit(ArbitrageFlagged {
+        oracle_id: oracle.id(),
+        strike,
+        k_magnitude: i64::magnitude(&k),
+        k_negative: i64::is_negative(&k),
+        g_magnitude: i64::magnitude(&g),
+        g_negative: i64::is_negative(&g),
+        checker_version: CHECKER_VERSION,
+    });
+}
+
+/// Read-only g(k) for `strike` (no event) — the value the off-chain mirror
+/// (`gFunctionFixed`) must match. For devInspect / cross-language difftests.
+public fun g_for_strike(oracle: &OracleSVI, strike: u64): I64 {
+    assert!(oracle.forward_price() > 0, EZeroForward);
+    let k = predict_math::ln(math::div(strike, oracle.forward_price()));
+    let svi: SVIParams = oracle.svi();
+    g_from_params(svi.svi_a(), svi.svi_b(), svi.svi_rho(), svi.svi_m(), svi.svi_sigma(), k)
+}
+
+/// Pure core: Gatheral g(k) over raw SVI params and signed log-moneyness `k`.
+/// Op-for-op mirror of `fixedpoint.ts::gFunctionFixed`.
+public fun g_from_params(a: u64, b: u64, rho: I64, m: I64, sigma: u64, k: I64): I64 {
+    let w = total_variance(a, b, rho, m, sigma, k);
+    assert!(w > 0, EZeroGVariance);
+    let w1 = total_variance_prime(b, rho, m, sigma, k);
+    let w2 = total_variance_prime2(b, m, sigma, k);
+
+    // term1 = 1 - k*w'/(2w)
+    let k_w1 = i64::mul_scaled(&k, &w1);
+    let two_w = i64::from_u64(2 * w);
+    let k_w1_over_2w = i64::div_scaled(&k_w1, &two_w);
+    let one = i64::from_u64(FLOAT_SCALING);
+    let term1 = i64::sub(&one, &k_w1_over_2w);
+    let term1_squared = i64::from_u64(i64::square_scaled(&term1));
+
+    // term2 = (w'^2 / 4) * (1/w + 1/4)
+    let w1_squared = i64::square_scaled(&w1);
+    let recip_plus_quarter = math::div(FLOAT_SCALING, w) + FLOAT_SCALING / 4;
+    let term2 = math::mul(w1_squared / 4, recip_plus_quarter);
+
+    // term3 = w'' / 2
+    let term3 = w2 / 2;
+
+    let g = i64::sub(&term1_squared, &i64::from_u64(term2));
+    i64::add(&g, &i64::from_u64(term3))
+}
+
+/// sqrt((k - m)^2 + sigma^2), reused across w, w', w''.
+fun svi_root(m: I64, sigma: u64, k: I64): u64 {
+    let km = i64::sub(&k, &m);
+    let km_squared = i64::square_scaled(&km);
+    let sigma_squared = math::mul(sigma, sigma);
+    predict_math::sqrt(km_squared + sigma_squared, FLOAT_SCALING)
+}
+
+/// w(k) = a + b*(rho*(k-m) + sqrt((k-m)^2 + sigma^2)). Non-negative.
+fun total_variance(a: u64, b: u64, rho: I64, m: I64, sigma: u64, k: I64): u64 {
+    let km = i64::sub(&k, &m);
+    let root = svi_root(m, sigma, k);
+    let rho_km = i64::mul_scaled(&rho, &km);
+    let inner = i64::add(&rho_km, &i64::from_u64(root));
+    assert!(!i64::is_negative(&inner), ECannotBeNegative);
+    a + math::mul(b, i64::magnitude(&inner))
+}
+
+/// w'(k) = b*(rho + (k-m)/sqrt((k-m)^2 + sigma^2)). Signed.
+fun total_variance_prime(b: u64, rho: I64, m: I64, sigma: u64, k: I64): I64 {
+    let km = i64::sub(&k, &m);
+    let root = svi_root(m, sigma, k);
+    let km_over_root = i64::div_scaled(&km, &i64::from_u64(root));
+    let inner = i64::add(&rho, &km_over_root);
+    i64::mul_scaled(&i64::from_u64(b), &inner)
+}
+
+/// w''(k) = b*sigma^2 / (km^2 + sigma^2)^1.5. Non-negative.
+fun total_variance_prime2(b: u64, m: I64, sigma: u64, k: I64): u64 {
+    let km = i64::sub(&k, &m);
+    let km_squared = i64::square_scaled(&km);
+    let sigma_squared = math::mul(sigma, sigma);
+    let s = km_squared + sigma_squared;
+    let root = predict_math::sqrt(s, FLOAT_SCALING);
+    let s_to_the_15 = math::mul(s, root);
+    let numerator = math::mul(b, sigma_squared);
+    math::div(numerator, s_to_the_15)
+}
+
 #[test_only]
 public fun checker_version(): u16 { CHECKER_VERSION }

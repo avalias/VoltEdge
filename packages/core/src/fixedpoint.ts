@@ -338,6 +338,92 @@ export function computeNd2Fixed(svi: SviParamsFixed, forward: bigint, strike: bi
   return normalCdfFixed(d2);
 }
 
+// --- on-chain no-arbitrage: Gatheral g(k) mirror -----------------------------
+
+/**
+ * Shared SVI sub-expression: km = k - m, s = km^2 + sigma^2, root = sqrt(s).
+ *
+ * All three are reused across w, w', w'' and g(k); computing them once keeps
+ * the integer pipeline op-for-op identical to the Move transcription.
+ */
+function sviKmAndRoot(svi: SviParamsFixed, k: I64): { km: I64; s: bigint; root: bigint } {
+  const km = i64Sub(k, svi.m);
+  const kmSquared = i64SquareScaled(km);
+  const sigmaSquared = mulFixed(svi.sigma, svi.sigma);
+  const s = kmSquared + sigmaSquared;
+  const root = sqrtFixed(s, F);
+  return { km, s, root };
+}
+
+/**
+ * Total implied variance w(k) = a + b*(rho*(k-m) + sqrt((k-m)^2 + sigma^2)).
+ *
+ * Returns a non-negative u64 fixed-point value. Mirrors the variance branch of
+ * `computeNd2Fixed`, exposed standalone so g(k) can reuse it.
+ */
+export function totalVarianceFixed(svi: SviParamsFixed, k: I64): bigint {
+  const { km, root } = sviKmAndRoot(svi, k);
+  const rhoKm = i64MulScaled(svi.rho, km);
+  const inner = i64Add(rhoKm, i64FromU64(root));
+  if (inner.isNegative) throw new Error('totalVarianceFixed: negative inner term');
+  return svi.a + mulFixed(svi.b, inner.magnitude);
+}
+
+/**
+ * First derivative w'(k) = b*(rho + (k-m)/sqrt((k-m)^2 + sigma^2)). Signed.
+ */
+export function totalVariancePrimeFixed(svi: SviParamsFixed, k: I64): I64 {
+  const { km, root } = sviKmAndRoot(svi, k);
+  const kmOverRoot = i64DivScaled(km, i64FromU64(root));
+  const inner = i64Add(svi.rho, kmOverRoot);
+  return i64MulScaled(i64FromU64(svi.b), inner);
+}
+
+/**
+ * Second derivative w''(k) = b*sigma^2 / (km^2 + sigma^2)^1.5. Always >= 0.
+ *
+ * s^1.5 is computed as s * sqrt(s) via mulFixed(s, root).
+ */
+export function totalVariancePrime2Fixed(svi: SviParamsFixed, k: I64): bigint {
+  const { s, root } = sviKmAndRoot(svi, k);
+  const sToThe15 = mulFixed(s, root);
+  const sigmaSquared = mulFixed(svi.sigma, svi.sigma);
+  const numerator = mulFixed(svi.b, sigmaSquared);
+  return divFixed(numerator, sToThe15);
+}
+
+/**
+ * Gatheral's butterfly-arbitrage density factor:
+ *
+ *   g(k) = (1 - k*w'/(2w))^2 - (w'^2/4)*(1/w + 1/4) + w''/2
+ *
+ * The risk-neutral density is proportional to g(k); g(k) < 0 anywhere means
+ * the slice admits butterfly (static) arbitrage. Integer mirror of the float
+ * `gFunction` in svi.ts, suitable for an op-for-op Move transcription.
+ */
+export function gFunctionFixed(svi: SviParamsFixed, k: I64): I64 {
+  const w = totalVarianceFixed(svi, k);
+  if (w === 0n) throw new Error('gFunctionFixed: zero variance');
+  const w1 = totalVariancePrimeFixed(svi, k);
+  const w2 = totalVariancePrime2Fixed(svi, k);
+
+  // term1 = 1 - k*w'/(2w)
+  const kW1 = i64MulScaled(k, w1);
+  const kW1Over2w = i64DivScaled(kW1, i64FromU64(2n * w));
+  const term1 = i64Sub(i64FromU64(F), kW1Over2w);
+  const term1Squared = i64FromU64(i64SquareScaled(term1));
+
+  // term2 = (w'^2 / 4) * (1/w + 1/4)
+  const w1Squared = i64SquareScaled(w1);
+  const reciprocalPlusQuarter = divFixed(F, w) + F / 4n;
+  const term2 = mulFixed(w1Squared / 4n, reciprocalPlusQuarter);
+
+  // term3 = w'' / 2
+  const term3 = w2 / 2n;
+
+  return i64Add(i64Sub(term1Squared, i64FromU64(term2)), i64FromU64(term3));
+}
+
 /**
  * Rescale an SVI slice's TOTAL variance by num/den at every log-moneyness.
  *

@@ -11,11 +11,21 @@ export const PREDICT_PACKAGE_ID =
   '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138';
 
 /** OUR deployed Move package — re-derives N(d2) on-chain with the protocol's
- * own public math and emits FairPriceAttested. The on-chain twin of the mirror. */
+ * own public math and emits FairPriceAttested. The on-chain twin of the mirror.
+ * (Original published id; still serves fair_up / FairPriceAttested.) */
 export const ATTESTOR_PACKAGE_ID =
   '0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d';
 /** A real FairPriceAttested event (permanent on-chain attestation). */
 export const ATTESTOR_EVENT_TX = 'Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq';
+
+/** Upgraded attestor package — adds the on-chain NO-ARBITRAGE check:
+ * Gatheral g(k) (butterfly density) recomputed on-chain with the protocol's
+ * own math, emitting ArbitrageFlagged. Call g_for_strike / attest_no_arb here. */
+export const ATTESTOR_PACKAGE_ID_V2 =
+  '0x0e77ebf4667b4751dd0df2dbf9188576d5eaab278581ffaec176fbe5e438935a';
+/** A real ArbitrageFlagged event (on-chain no-arb attestation; g>0 ⇒ no arb). */
+export const NOARB_EVENT_TX = '21Ai22Nyc1meCxykNkRLjc2GHDV4hALYxqjB5EWkqf8s';
+
 export const SUISCAN = 'https://suiscan.xyz/testnet';
 /** The shared Predict object (one per deployment). */
 export const PREDICT_OBJECT_ID =

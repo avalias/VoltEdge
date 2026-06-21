@@ -7,6 +7,7 @@ import {
   divFixed,
   expFixed,
   F,
+  gFunctionFixed,
   i64FromParts,
   i64FromU64,
   i64Neg,
@@ -18,9 +19,17 @@ import {
   scaleSviVariance,
   spreadFromFairPrice,
   sqrtFixed,
+  totalVarianceFixed,
+  totalVariancePrimeFixed,
+  totalVariancePrime2Fixed,
   type SviParamsFixed,
 } from '../src/fixedpoint.js';
-import { totalVariance } from '../src/svi.js';
+import {
+  gFunction,
+  totalVariance,
+  totalVariancePrime,
+  totalVariancePrime2,
+} from '../src/svi.js';
 
 function toFixed(x: number): bigint {
   return BigInt(Math.round(x * 1e9));
@@ -220,5 +229,70 @@ describe('divFixed truncation matches Move math::div', () => {
   it('truncates toward zero like u128 division', () => {
     expect(divFixed(1n, 3n)).toBe(333_333_333n);
     expect(divFixed(2n, 3n)).toBe(666_666_666n);
+  });
+});
+
+describe('Gatheral g(k) integer mirror vs float svi.ts', () => {
+  // Same realistic sub-hour BTC slices as computeNd2Fixed, plus one slice
+  // crafted to dip g(k) < 0 (butterfly arb) so the sign is exercised.
+  const slices: SviParams[] = [
+    { a: 1.2e-5, b: 4.0e-4, rho: -0.15, m: 0.0, sigma: 0.012 },
+    { a: 3.0e-5, b: 9.0e-4, rho: -0.65, m: -0.004, sigma: 0.02 },
+    { a: 5.0e-6, b: 2.0e-4, rho: 0.1, m: 0.001, sigma: 0.006 },
+    { a: 4.0e-4, b: 2.5e-3, rho: -0.4, m: 0.0, sigma: 0.05 },
+  ];
+
+  function kToI64(k: number) {
+    return k < 0 ? i64Neg(i64FromU64(toFixed(-k))) : i64FromU64(toFixed(k));
+  }
+
+  // w ~ 1e-5..1e-3 carries only ~4-5 sig figs on-chain; g(k) divides by w and
+  // by w^1.5, so quantization is amplified. This documents that amplified
+  // floor (g(k) itself is O(1), so the bound never flips a real arb sign).
+  const W_TOL = 5e-7;
+  const W1_TOL = 5e-6;
+  const W2_TOL = 5e-3;
+  const G_TOL = 5e-3;
+
+  for (const [si, p] of slices.entries()) {
+    it(`slice ${si}: w, w', w'', g all track float within tolerance`, () => {
+      const pf = sviToFixed(p);
+      let maxW = 0;
+      let maxW1 = 0;
+      let maxW2 = 0;
+      let maxG = 0;
+      for (let k = -0.08; k <= 0.08 + 1e-9; k += 0.002) {
+        const kf = kToI64(k);
+        maxW = Math.max(maxW, Math.abs(Number(totalVarianceFixed(pf, kf)) / 1e9 - totalVariance(p, k)));
+        maxW1 = Math.max(maxW1, Math.abs(i64ToNumber(totalVariancePrimeFixed(pf, kf)) - totalVariancePrime(p, k)));
+        maxW2 = Math.max(maxW2, Math.abs(Number(totalVariancePrime2Fixed(pf, kf)) / 1e9 - totalVariancePrime2(p, k)));
+        maxG = Math.max(maxG, Math.abs(i64ToNumber(gFunctionFixed(pf, kf)) - gFunction(p, k)));
+      }
+      expect(maxW).toBeLessThan(W_TOL);
+      expect(maxW1).toBeLessThan(W1_TOL);
+      expect(maxW2).toBeLessThan(W2_TOL);
+      expect(maxG).toBeLessThan(G_TOL);
+    });
+  }
+
+  it('g(k) < 0 detected on a butterfly-arb slice (sign agrees with float)', () => {
+    // Large b + extreme rho near the wing pushes the density negative.
+    const arb: SviParams = { a: 1e-5, b: 0.02, rho: -0.92, m: 0.0, sigma: 0.004 };
+    const pf = sviToFixed(arb);
+    let floatNeg = 0;
+    let fixedNeg = 0;
+    let signAgree = 0;
+    let n = 0;
+    for (let k = -0.1; k <= 0.1 + 1e-9; k += 0.004) {
+      const gf = gFunction(arb, k);
+      const gi = i64ToNumber(gFunctionFixed(pf, kToI64(k)));
+      if (gf < 0) floatNeg++;
+      if (gi < 0) fixedNeg++;
+      if (gf < 0 === gi < 0) signAgree++;
+      n++;
+    }
+    expect(floatNeg).toBeGreaterThan(0); // the slice really does admit arb
+    expect(fixedNeg).toBeGreaterThan(0); // integer mirror sees it too
+    expect(signAgree).toBe(n); // sign never disagrees across the grid
   });
 });

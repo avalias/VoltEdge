@@ -16,6 +16,44 @@ import {
 import { Sparkline } from '../components/Sparkline';
 import type { Slice } from '../lib/slices';
 import { fmtDur, fmtMargin } from '../lib/format';
+import { ATTESTOR_PACKAGE_ID_V2, NOARB_EVENT_TX, SUISCAN } from '../lib/proofConstants';
+
+const trunc = (s: string) => `${s.slice(0, 6)}…${s.slice(-4)}`;
+
+/** The same Gatheral g(k) butterfly check, recomputed ON-CHAIN by VoltEdge's
+ * deployed Move package with the protocol's OWN math — the no-arb watchdog
+ * anchored on-chain, emitting ArbitrageFlagged. */
+function OnChainNoArbPanel() {
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="panel-title">ON-CHAIN NO-ARB ATTESTATION ⛓</span>
+        <span className="chip chip--ok">
+          <span className="dot" /> 32/32 on-chain g = mirror · 0 units
+        </span>
+      </div>
+      <p className="note" style={{ marginTop: 0 }}>
+        The butterfly density factor <strong>g(k)</strong> above is not just an off-chain
+        analytic — VoltEdge&apos;s deployed Move package recomputes it{' '}
+        <strong>on-chain</strong>, in fixed-point, with the protocol&apos;s own
+        <code> ln / sqrt</code> primitives, and emits <code>ArbitrageFlagged</code> when{' '}
+        g(k) &lt; 0. The protocol stores the SVI surface but never checks it for arbitrage;
+        this is that watchdog, anchored on the chain. Verified bit-exact (32/32 strikes, max
+        diff 0 units) against this in-browser computation on live BTC oracles.
+      </p>
+      <div className="chip-strip">
+        <a className="chip chip--dim" target="_blank" rel="noreferrer"
+          href={`${SUISCAN}/object/${ATTESTOR_PACKAGE_ID_V2}`}>
+          package {trunc(ATTESTOR_PACKAGE_ID_V2)} ↗
+        </a>
+        <a className="chip chip--dim" target="_blank" rel="noreferrer"
+          href={`${SUISCAN}/tx/${NOARB_EVENT_TX}`}>
+          ArbitrageFlagged event ↗
+        </a>
+      </div>
+    </div>
+  );
+}
 
 const K_MIN = -0.06;
 const K_MAX = 0.06;
@@ -134,6 +172,7 @@ export function NoArbTab({ slices }: NoArbTabProps) {
   }
 
   return (
+    <>
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">NO-ARBITRAGE CHECKS</span>
@@ -189,5 +228,7 @@ export function NoArbTab({ slices }: NoArbTabProps) {
         margins move with every SVI refit, all-green is the expected healthy state
       </div>
     </div>
+    <OnChainNoArbPanel />
+    </>
   );
 }
