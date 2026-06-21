@@ -13,6 +13,7 @@ import { useState } from 'react';
 import type { Slice } from '../lib/slices';
 import type { OracleStateResponse } from '../lib/data';
 import { runProof, sviFixedFromRow, type ProofInput, type ProofRun } from '../lib/proof';
+import { ATTESTOR_EVENT_TX, ATTESTOR_PACKAGE_ID, SUISCAN } from '../lib/proofConstants';
 import { fmtClock, fmtNum, truncMiddle } from '../lib/format';
 
 const PROOF_ORACLES = 3;
@@ -61,6 +62,53 @@ function SummaryBanner({ run }: { run: ProofRun }) {
       fair {run.fairExact}/{run.totalQuotes} exact (max diff {run.maxFairDiff.toString()} units) ·
       spread {run.spreadExact}/{run.spreadChecked} exact (max diff {run.maxSpreadDiff.toString()}{' '}
       units)
+    </div>
+  );
+}
+
+/** The proof, also landed on-chain: our deployed Move package re-derived N(d2)
+ * in the SAME snapshot and agreed with the mirror to the unit. */
+function AttestorPanel({ run }: { run: ProofRun }) {
+  if (run.attestorChecked === 0) return null;
+  const allExact = run.attestorExact === run.attestorChecked;
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="panel-title">ON-CHAIN ATTESTATION · our deployed Move package</span>
+        <span className="panel-meta dim">
+          voltedge_attestor::attestor::fair_up · re-derived in the same devInspect snapshot
+        </span>
+      </div>
+      <p className="proof-explainer">
+        The proof above isn&apos;t only off-chain. Our own deployed Move package re-derives the
+        binary price N(d2) <strong>on-chain</strong> — calling the protocol&apos;s OWN public math
+        (`math::normal_cdf/ln/sqrt`), an op-for-op transcription of the protocol&apos;s private
+        `oracle::compute_nd2` — and in the same atomic snapshot it agrees with the mirror to the
+        exact integer. The bit-exactness claim is itself on-chain and permanent.
+      </p>
+      <div className="chip-strip">
+        <span className={`chip ${allExact ? 'chip--ok' : 'chip--warn'}`}>
+          {allExact && <span className="dot" />} {run.attestorExact}/{run.attestorChecked} on-chain
+          attestor = mirror ·{' '}
+          {allExact ? '0 units' : `max diff ${run.maxAttestorDiff.toString()} units`}
+        </span>
+        <a
+          className="chip chip--dim"
+          href={`${SUISCAN}/object/${ATTESTOR_PACKAGE_ID}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          package {truncMiddle(ATTESTOR_PACKAGE_ID, 6)} ↗
+        </a>
+        <a
+          className="chip chip--dim"
+          href={`${SUISCAN}/tx/${ATTESTOR_EVENT_TX}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          FairPriceAttested event ↗
+        </a>
+      </div>
     </div>
   );
 }
@@ -167,6 +215,7 @@ export function ProofTab({ slices, states }: ProofTabProps) {
       {result !== null && (
         <>
           <SummaryBanner run={result} />
+          <AttestorPanel run={result} />
 
           <div className="chip-strip">
             <span className="chip chip--dim">
@@ -215,6 +264,8 @@ export function ProofTab({ slices, states }: ProofTabProps) {
                       <th className="num">CHAIN BID · units · %</th>
                       <th className="num">MIRROR FAIR</th>
                       <th className="num">Δ FAIR</th>
+                      <th className="num">ATTESTOR ⛓</th>
+                      <th className="num">Δ ATT</th>
                       <th className="num">Δ SPREAD</th>
                     </tr>
                   </thead>
@@ -235,6 +286,10 @@ export function ProofTab({ slices, states }: ProofTabProps) {
                             {unitsAndPct(r.fairMirror)}
                           </td>
                           <DiffCell diff={r.fairDiff} />
+                          <td className="num">
+                            {r.attestorFair !== null ? unitsAndPct(r.attestorFair) : '—'}
+                          </td>
+                          <DiffCell diff={r.attestorDiff} />
                           <DiffCell diff={r.spreadDiff} />
                         </tr>
                       )),

@@ -30,6 +30,7 @@ import {
 } from '@voltedge/core';
 import type { SviRow } from './data';
 import {
+  ATTESTOR_PACKAGE_ID,
   CLOCK_OBJECT_ID,
   DEV_INSPECT_SENDER,
   PREDICT_OBJECT_ID,
@@ -91,6 +92,8 @@ export interface QuotedStrike {
   ask: bigint;
   /** bid price in 1e9 units */
   bid: bigint;
+  /** N(d2) re-derived ON-CHAIN by our voltedge_attestor (same snapshot) */
+  attestorFair: bigint | null;
 }
 
 export interface OracleSnapshot {
@@ -178,6 +181,15 @@ export async function inspectOracleQuoted(
     });
   }
 
+  // OUR on-chain attestor: re-derive N(d2) for each strike from the SAME
+  // object snapshot, so attestor == chain quote == mirror, race-free.
+  for (const s of strikes) {
+    tx.moveCall({
+      target: `${ATTESTOR_PACKAGE_ID}::attestor::fair_up`,
+      arguments: [oracle, tx.pure.u64(s.strike)],
+    });
+  }
+
   const res = await client.devInspectTransactionBlock({
     sender: DEV_INSPECT_SENDER,
     transactionBlock: tx,
@@ -197,8 +209,17 @@ export async function inspectOracleQuoted(
       isUp: s.isUp,
       ask: readU64(rv[0]![0]),
       bid: readU64(rv[1]![0]),
+      attestorFair: null,
     });
     idx += 1;
+  }
+
+  // attestor fair_up results come after all snapshot + quote results
+  let aidx = 9 + 2 * strikes.length;
+  for (let k = 0; k < strikes.length; k++) {
+    const arv = results[aidx]?.returnValues;
+    snap.quotes[k]!.attestorFair = arv && arv[0] ? readU64(arv[0][0]) : null;
+    aidx += 1;
   }
   return snap;
 }
@@ -305,6 +326,10 @@ export interface ProofQuoteRow {
   /** null when the spread mirror threw (clamped/settled edge case) */
   spreadMirror: bigint | null;
   spreadDiff: bigint | null;
+  /** our on-chain Move attestor's N(d2), same snapshot */
+  attestorFair: bigint | null;
+  /** |attestor − mirror| — expected 0 (the on-chain twin of the mirror) */
+  attestorDiff: bigint | null;
 }
 
 export type OracleBlockStatus = 'ok' | 'stale' | 'no-strikes' | 'error';
@@ -329,6 +354,11 @@ export interface ProofRun {
   spreadChecked: number;
   maxFairDiff: bigint;
   maxSpreadDiff: bigint;
+  /** quotes where the on-chain attestor returned a value */
+  attestorChecked: number;
+  /** quotes where on-chain attestor == mirror (0 units) */
+  attestorExact: number;
+  maxAttestorDiff: bigint;
   staleSkipped: number;
   elapsedMs: number;
   /** wall-clock of the run, for the "as of" stamp */
@@ -406,6 +436,14 @@ async function proveOracle(client: SuiJsonRpcClient, input: ProofInput): Promise
       // EFairPriceAlreadySettled-class edge — reported as unchecked
     }
 
+    const attestorFair = q.attestorFair;
+    const attestorDiff =
+      attestorFair === null
+        ? null
+        : attestorFair > fairMirror
+          ? attestorFair - fairMirror
+          : fairMirror - attestorFair;
+
     block.rows.push({
       oracleId: input.oracleId,
       label: input.label,
@@ -419,6 +457,8 @@ async function proveOracle(client: SuiJsonRpcClient, input: ProofInput): Promise
       spreadObs,
       spreadMirror,
       spreadDiff,
+      attestorFair,
+      attestorDiff,
     });
   }
   return block;
@@ -439,6 +479,9 @@ export async function runProof(inputs: readonly ProofInput[]): Promise<ProofRun>
   let spreadChecked = 0;
   let maxFairDiff = 0n;
   let maxSpreadDiff = 0n;
+  let attestorChecked = 0;
+  let attestorExact = 0;
+  let maxAttestorDiff = 0n;
   let staleSkipped = 0;
   for (const b of blocks) {
     if (b.status === 'stale') staleSkipped++;
@@ -451,6 +494,11 @@ export async function runProof(inputs: readonly ProofInput[]): Promise<ProofRun>
         if (r.spreadDiff === 0n) spreadExact++;
         if (r.spreadDiff > maxSpreadDiff) maxSpreadDiff = r.spreadDiff;
       }
+      if (r.attestorDiff !== null) {
+        attestorChecked++;
+        if (r.attestorDiff === 0n) attestorExact++;
+        if (r.attestorDiff > maxAttestorDiff) maxAttestorDiff = r.attestorDiff;
+      }
     }
   }
 
@@ -462,6 +510,9 @@ export async function runProof(inputs: readonly ProofInput[]): Promise<ProofRun>
     spreadChecked,
     maxFairDiff,
     maxSpreadDiff,
+    attestorChecked,
+    attestorExact,
+    maxAttestorDiff,
     staleSkipped,
     elapsedMs: Math.round(performance.now() - t0),
     ranAt: Date.now(),

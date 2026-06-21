@@ -9,6 +9,14 @@
 
 export const PREDICT_PACKAGE_ID =
   '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138';
+
+/** OUR deployed Move package — re-derives N(d2) on-chain with the protocol's
+ * own public math and emits FairPriceAttested. The on-chain twin of the mirror. */
+export const ATTESTOR_PACKAGE_ID =
+  '0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d';
+/** A real FairPriceAttested event (permanent on-chain attestation). */
+export const ATTESTOR_EVENT_TX = 'Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq';
+export const SUISCAN = 'https://suiscan.xyz/testnet';
 /** The shared Predict object (one per deployment). */
 export const PREDICT_OBJECT_ID =
   '0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a';
