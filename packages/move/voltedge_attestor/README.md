@@ -26,12 +26,13 @@ parity, not an assertion.
 | | |
 |---|---|
 | **Package ID** (original) | `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d` |
-| **Package ID** (upgraded, adds `g(k)`) | `0x0e77ebf4667b4751dd0df2dbf9188576d5eaab278581ffaec176fbe5e438935a` |
+| **Package ID** (upgraded, adds `g(k)` + degenerate-slice guards) | `0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf` |
 | Publish tx | `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU` |
-| Upgrade tx | `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` |
+| Upgrade tx (add `g(k)`) | `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` |
+| Upgrade tx (degenerate-slice guards) | `G9YchsNJRS2APeQePPjoYChxiv2MothbNJMki5fyrith` |
 | UpgradeCap | `0xd7a7956a692882f679e08017575309c6e99205da50ef31eda15e40127a73aa36` |
 | Example `FairPriceAttested` event | `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq` |
-| Example `ArbitrageFlagged` event | `21Ai22Nyc1meCxykNkRLjc2GHDV4hALYxqjB5EWkqf8s` |
+| Example `ArbitrageFlagged` event | `86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf` |
 
 ## API (`module voltedge_attestor::attestor`)
 
@@ -78,10 +79,12 @@ VERDICT: the DEPLOYED on-chain no-arb check is BIT-EXACT vs the TS mirror.
 (The snapshot must be atomic: the keeper pushes a new SVI every ~6.6 s, so a
 non-atomic read shows races, not discrepancies.)
 
-Move unit tests (`sui move test`): 8/8 — the `Φ(0) = 500_000_000` anchor, ATM
+Move unit tests (`sui move test`): 10/10 — the `Φ(0) = 500_000_000` anchor, ATM
 `N(d2) < 0.5`, strike-monotonicity, `EZeroForward`; plus `g(0) > 0` on a sane
-ATM surface, `g(k) < 0` flagged on a steep-wing butterfly-arb slice, and the
-`EZeroGVariance` abort.
+ATM surface, `g(k) < 0` flagged on a steep-wing butterfly-arb slice, the
+`EZeroGVariance` abort, and two degenerate-slice guards (`EDegenerateSlice`:
+tiny-σ ATM where the `s^1.5` denominator underflows, and σ=0 ATM where the
+derivative divides by a zero root — named guards, never a raw VM div-by-zero).
 
 ## Build & deploy
 

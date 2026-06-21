@@ -22,9 +22,9 @@ export const ATTESTOR_EVENT_TX = 'Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq';
  * Gatheral g(k) (butterfly density) recomputed on-chain with the protocol's
  * own math, emitting ArbitrageFlagged. Call g_for_strike / attest_no_arb here. */
 export const ATTESTOR_PACKAGE_ID_V2 =
-  '0x0e77ebf4667b4751dd0df2dbf9188576d5eaab278581ffaec176fbe5e438935a';
+  '0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf';
 /** A real ArbitrageFlagged event (on-chain no-arb attestation; g>0 ⇒ no arb). */
-export const NOARB_EVENT_TX = '21Ai22Nyc1meCxykNkRLjc2GHDV4hALYxqjB5EWkqf8s';
+export const NOARB_EVENT_TX = '86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf';
 
 export const SUISCAN = 'https://suiscan.xyz/testnet';
 /** The shared Predict object (one per deployment). */

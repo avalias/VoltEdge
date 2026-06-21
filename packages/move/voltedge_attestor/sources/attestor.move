@@ -124,6 +124,10 @@ fun compute_nd2_oracle(oracle: &OracleSVI, strike: u64): u64 {
 // @voltedge/core `fixedpoint.ts::gFunctionFixed` over the protocol's own math.
 
 const EZeroGVariance: u64 = 6;
+// Degenerate slice: a derivative denominator (sqrt(s) or s^1.5) is zero, i.e.
+// sigma -> 0 with the strike at the money. Named here so the leaf division
+// never leaks a raw VM div-by-zero (cf. the protocol's move.md guard rule).
+const EDegenerateSlice: u64 = 7;
 
 /// Emitted when g(k) is computed on-chain for (oracle, strike). `g_negative`
 /// true means the slice admits butterfly arbitrage at that strike — a
@@ -214,6 +218,7 @@ fun total_variance(a: u64, b: u64, rho: I64, m: I64, sigma: u64, k: I64): u64 {
 fun total_variance_prime(b: u64, rho: I64, m: I64, sigma: u64, k: I64): I64 {
     let km = i64::sub(&k, &m);
     let root = svi_root(m, sigma, k);
+    assert!(root > 0, EDegenerateSlice);
     let km_over_root = i64::div_scaled(&km, &i64::from_u64(root));
     let inner = i64::add(&rho, &km_over_root);
     i64::mul_scaled(&i64::from_u64(b), &inner)
@@ -227,6 +232,7 @@ fun total_variance_prime2(b: u64, m: I64, sigma: u64, k: I64): u64 {
     let s = km_squared + sigma_squared;
     let root = predict_math::sqrt(s, FLOAT_SCALING);
     let s_to_the_15 = math::mul(s, root);
+    assert!(s_to_the_15 > 0, EDegenerateSlice);
     let numerator = math::mul(b, sigma_squared);
     math::div(numerator, s_to_the_15)
 }

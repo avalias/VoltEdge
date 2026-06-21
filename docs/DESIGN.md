@@ -43,8 +43,9 @@ VoltEdge covers three with one coherent product:
 Judging signals we target (from the suixclaw audit rules + 2025 winner taste):
 working end-to-end demo on testnet, deep Sui-stack usage (PTBs, shared objects,
 devInspect, Walrus Sites hosting), **no hollow UI** — every number on screen is
-derived from a validated math pipeline, and the repo proves it with 320+ tests
-against independent references (scipy, finite differences, call-spread limits).
+derived from a validated math pipeline, and the repo proves it with an
+independent-reference test suite (scipy, finite differences, call-spread
+limits) — see README/RUNBOOK for the as-built counts.
 
 Our unfair advantage: the protocol is a quant object (SVI surfaces, digital
 options, utilization-priced spreads). Most hackathon entries will build
@@ -115,7 +116,7 @@ packages/strategy — range-ladder engine + redeem keeper (Node, uses core+chain
 research/        — Python: golden vectors, backtest, MC sim report
 ```
 
-### packages/core (zero-dependency TS) — DONE, 320 tests
+### packages/core (zero-dependency TS) — DONE (see README for test counts)
 - `gaussian.ts` — Cody erf/erfc normCdf (1e-15), Acklam+Halley normInv.
 - `svi.ts` — raw-SVI w(k), analytic w′/w″, Gatheral g(k) butterfly check,
   calendar check, protocol-formula digital (`digitalUpTotalVar`), and
@@ -171,7 +172,7 @@ research/        — Python: golden vectors, backtest, MC sim report
 ### research/ (Python, scipy/numpy)
 - `gen_golden.py` — DONE (independent-route golden vectors).
 - `backtest.py` — replay historical settlements + SVI (full `/oracles` history,
-  3800+ settled 15m cycles) through the ladder policy grid → equity curves,
+  2,620 filtered settled 15m cycles) through the ladder policy grid → equity curves,
   Sharpe, drawdown, sensitivity to c (strike width) and Kelly fraction.
 - `mc_validate.py` — DONE: independent scipy route computes the EXACT analytic
   payout distribution (no sampling, FD call-spread digital) and asserts the TS
@@ -195,7 +196,7 @@ research/        — Python: golden vectors, backtest, MC sim report
 
 | Day | Deliverable |
 |---|---|
-| Jun 12 | ✅ core math + fixed-point mirror + indexer client, 320 tests green |
+| Jun 12 | ✅ core math + fixed-point mirror + indexer client, tests green |
 | Jun 13 | chain package: PTB builders + devInspect quoters; mirror diff-test vs live quotes; dUSDC/manager bootstrap (needs Val: DeepSurge reg + TG + dUSDC ask) |
 | Jun 14 | web terminal skeleton: Surface Studio + No-Arb monitor live on testnet data |
 | Jun 15 | Edge heatmap + Vault Risk MC panel; backtest harness on historical settlements |

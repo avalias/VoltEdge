@@ -86,3 +86,20 @@ fun g_zero_variance_aborts() {
     attestor::g_from_params(0, 0, i64::zero(), i64::zero(), SIG, i64::zero());
     abort 999
 }
+
+/// Tiny sigma at the money: w'' denominator (km^2+sigma^2)^1.5 truncates to 0.
+/// Must abort with the module's named guard, never a raw VM div-by-zero.
+#[test, expected_failure(abort_code = voltedge_attestor::attestor::EDegenerateSlice)]
+fun g_tiny_sigma_atm_aborts() {
+    // a=0.01 (w>0 ⇒ EZeroGVariance passes), sigma=5e-4, k=0 ⇒ s^1.5 = 0.
+    attestor::g_from_params(A, B, i64::zero(), i64::zero(), 500_000, i64::zero());
+    abort 999
+}
+
+/// sigma=0 at the money: sqrt((k-m)^2+sigma^2)=0, so w' divides by zero.
+/// Must abort with the module's named guard, not the dependency's foreign code.
+#[test, expected_failure(abort_code = voltedge_attestor::attestor::EDegenerateSlice)]
+fun g_zero_sigma_atm_aborts() {
+    attestor::g_from_params(A, B, i64::zero(), i64::zero(), 0, i64::zero());
+    abort 999
+}
