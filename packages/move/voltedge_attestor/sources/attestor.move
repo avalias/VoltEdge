@@ -128,6 +128,11 @@ const EZeroGVariance: u64 = 6;
 // sigma -> 0 with the strike at the money. Named here so the leaf division
 // never leaks a raw VM div-by-zero (cf. the protocol's move.md guard rule).
 const EDegenerateSlice: u64 = 7;
+// Calendar attestation guards: the two oracles must share an underlying and be
+// ordered near.expiry < far.expiry for the variance-monotonicity check to mean
+// anything.
+const ECrossUnderlying: u64 = 8;
+const EExpiryOrder: u64 = 9;
 
 /// Emitted when g(k) is computed on-chain for (oracle, strike). `g_negative`
 /// true means the slice admits butterfly arbitrage at that strike — a
@@ -235,6 +240,94 @@ fun total_variance_prime2(b: u64, m: I64, sigma: u64, k: I64): u64 {
     assert!(s_to_the_15 > 0, EDegenerateSlice);
     let numerator = math::mul(b, sigma_squared);
     math::div(numerator, s_to_the_15)
+}
+
+// === On-chain no-arbitrage: calendar monotonicity ===
+//
+// Total implied variance must be non-decreasing in expiry at every fixed
+// log-moneyness: w_near(k) <= w_far(k) for T_near < T_far (driftless moneyness,
+// fine for sub-hour BTC). w_near(k) > w_far(k) is a CALENDAR arbitrage — the
+// second no-arb dimension, the sibling of the butterfly g(k) check. VoltEdge
+// already catches this off-chain on the live feed (see FINDINGS); this anchors
+// it on-chain too. Spread = w_near(k) - w_far(k); positive => arbitrage.
+
+/// Emitted when the calendar (across-expiry) variance monotonicity is checked
+/// on-chain for two same-underlying oracles. `arb` true means w_near > w_far at
+/// the evaluated log-moneyness — a calendar arbitrage.
+public struct CalendarArbFlagged has copy, drop {
+    near_id: ID,
+    far_id: ID,
+    strike: u64, // 1e9 fixed; defines k = ln(strike / near_forward)
+    k_magnitude: u64,
+    k_negative: bool,
+    w_near: u64, // total variance at k, near expiry (1e9 fixed)
+    w_far: u64, // total variance at k, far expiry (1e9 fixed)
+    spread_magnitude: u64, // |w_near - w_far|
+    spread_negative: bool, // false & nonzero => calendar arbitrage
+    arb: bool, // w_near > w_far
+    checker_version: u16,
+}
+
+/// Compute the calendar spread for `strike` (k = ln(strike/near_forward)) and
+/// emit CalendarArbFlagged with the sign. Composable in a PTB.
+public fun attest_calendar(near: &OracleSVI, far: &OracleSVI, strike: u64) {
+    let (k, w_near, w_far) = calendar_eval(near, far, strike);
+    let spread = i64::sub(&i64::from_u64(w_near), &i64::from_u64(w_far));
+    event::emit(CalendarArbFlagged {
+        near_id: near.id(),
+        far_id: far.id(),
+        strike,
+        k_magnitude: i64::magnitude(&k),
+        k_negative: i64::is_negative(&k),
+        w_near,
+        w_far,
+        spread_magnitude: i64::magnitude(&spread),
+        spread_negative: i64::is_negative(&spread),
+        arb: !i64::is_negative(&spread) && i64::magnitude(&spread) > 0,
+        checker_version: CHECKER_VERSION,
+    });
+}
+
+/// Read-only calendar spread w_near(k) - w_far(k) (no event) — the value the
+/// off-chain mirror must match. For devInspect / cross-language difftests.
+public fun calendar_spread(near: &OracleSVI, far: &OracleSVI, strike: u64): I64 {
+    let (_, w_near, w_far) = calendar_eval(near, far, strike);
+    i64::sub(&i64::from_u64(w_near), &i64::from_u64(w_far))
+}
+
+/// Pure core: w_near(k) - w_far(k) over two raw SVI param sets and a signed
+/// log-moneyness `k`. Op-for-op mirror of `totalVarianceFixed(near,k) -
+/// totalVarianceFixed(far,k)`.
+public fun calendar_spread_from_params(
+    a_near: u64,
+    b_near: u64,
+    rho_near: I64,
+    m_near: I64,
+    sigma_near: u64,
+    a_far: u64,
+    b_far: u64,
+    rho_far: I64,
+    m_far: I64,
+    sigma_far: u64,
+    k: I64,
+): I64 {
+    let w_near = total_variance(a_near, b_near, rho_near, m_near, sigma_near, k);
+    let w_far = total_variance(a_far, b_far, rho_far, m_far, sigma_far, k);
+    i64::sub(&i64::from_u64(w_near), &i64::from_u64(w_far))
+}
+
+/// Read both oracles, enforce same-underlying + near.expiry < far.expiry, and
+/// return (k, w_near, w_far) at k = ln(strike / near_forward).
+fun calendar_eval(near: &OracleSVI, far: &OracleSVI, strike: u64): (I64, u64, u64) {
+    assert!(near.underlying_asset() == far.underlying_asset(), ECrossUnderlying);
+    assert!(near.expiry() < far.expiry(), EExpiryOrder);
+    assert!(near.forward_price() > 0, EZeroForward);
+    let k = predict_math::ln(math::div(strike, near.forward_price()));
+    let sn: SVIParams = near.svi();
+    let sf: SVIParams = far.svi();
+    let w_near = total_variance(sn.svi_a(), sn.svi_b(), sn.svi_rho(), sn.svi_m(), sn.svi_sigma(), k);
+    let w_far = total_variance(sf.svi_a(), sf.svi_b(), sf.svi_rho(), sf.svi_m(), sf.svi_sigma(), k);
+    (k, w_near, w_far)
 }
 
 #[test_only]

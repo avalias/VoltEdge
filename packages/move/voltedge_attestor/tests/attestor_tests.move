@@ -103,3 +103,31 @@ fun g_zero_sigma_atm_aborts() {
     attestor::g_from_params(A, B, i64::zero(), i64::zero(), 0, i64::zero());
     abort 999
 }
+
+/// Calendar: when the far (longer) expiry carries MORE total variance, the
+/// monotonicity holds — spread w_near - w_far < 0, no arbitrage.
+#[test]
+fun calendar_healthy_when_far_variance_higher() {
+    // near w(0)=0.01+0.1*0.2=0.03 ; far w(0)=0.02+0.15*0.25=0.0575
+    let spread = attestor::calendar_spread_from_params(
+        A, B, i64::zero(), i64::zero(), SIG,
+        20_000_000, 150_000_000, i64::zero(), i64::zero(), 250_000_000,
+        i64::zero(),
+    );
+    assert!(i64::is_negative(&spread));
+    assert!(i64::magnitude(&spread) > 0);
+}
+
+/// Calendar: when the near (shorter) expiry carries MORE total variance than the
+/// far one, variance DECREASES with expiry — a calendar arbitrage (spread > 0).
+#[test]
+fun calendar_arb_when_near_variance_higher() {
+    // near w(0)=0.05+0.1*0.2=0.07 ; far w(0)=0.01+0.1*0.2=0.03
+    let spread = attestor::calendar_spread_from_params(
+        50_000_000, B, i64::zero(), i64::zero(), SIG,
+        A, B, i64::zero(), i64::zero(), SIG,
+        i64::zero(),
+    );
+    assert!(!i64::is_negative(&spread));
+    assert!(i64::magnitude(&spread) > 0);
+}
