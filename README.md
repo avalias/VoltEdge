@@ -19,7 +19,7 @@ and an autonomous strategy trading on Sui testnet with on-chain receipts.**
 |---|---|
 | Bit-exact mirror of the on-chain pricing pipeline | **every quoted strike, 0 units diff** vs live `devInspect`; re-runnable in your browser from the **Proof tab** |
 | The mirror, promoted **on-chain** | our deployed Move package [`voltedge_attestor`](packages/move/voltedge_attestor) (`0xa5df8faa…0b8d`) re-derives `N(d2)` using the protocol's own public math and emits a `FairPriceAttested` event — **22/22 bit-exact (0 units)** vs the mirror on live oracles |
-| The **no-arb watchdog, on-chain** | the upgraded package (`0xdae37107…1dcf`) recomputes Gatheral's butterfly density `g(k)` **on-chain** with the protocol's own math and emits `ArbitrageFlagged` when `g(k) < 0` — **32/32 bit-exact (0 units)** vs the mirror. *The protocol stores the SVI surface but never checks it for arbitrage.* |
+| The **no-arb watchdog, on-chain** (both dimensions) | the upgraded package (`0xe3c44c68…23ad`) recomputes **both** no-arb checks **on-chain** with the protocol's own math: butterfly density `g(k)` (`ArbitrageFlagged` when `g < 0`) and calendar variance monotonicity `w_near(k) ≤ w_far(k)` across expiries (`CalendarArbFlagged` when `w_near > w_far`) — **bit-exact, 0 units** vs the mirror on live oracles (representative runs: 32–46/× butterfly, 28/28 calendar). *The protocol stores the SVI surface but never checks it for arbitrage.* |
 | Live execution matches the mirror | first live mint within **1e-6** of prediction ([tx](https://suiscan.xyz/testnet/tx/2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip)) |
 | The feed misprices the distribution's *shape* | mature-era backtest (n=2,369 of 2,620): ATM band hits **46.9%** vs **38.2%** implied → **+7.7%/$1 after spread** (t = 7.5); +6.7% (t=6.9) on the full sample |
 | Real protocol findings | cross-tier calendar arbitrage (live), settlement delays up to **8.7h**, SVI-staleness gate gap, indexer range-PnL blind spot |
@@ -35,7 +35,7 @@ and an autonomous strategy trading on Sui testnet with on-chain receipts.**
 **The terminal** (`npm run dev`, read-only, zero setup):
 
 - **Surface** — live SVI implied-vol smiles across all expiry tiers, with time-travel replay
-- **No-Arb** — butterfly g(k) ≥ 0, calendar monotonicity, parameter sanity on every SVI refit; catches real violations live — and the same g(k) check is re-derived **on-chain** by our Move package (`ArbitrageFlagged`)
+- **No-Arb** — butterfly g(k) ≥ 0, calendar monotonicity, parameter sanity on every SVI refit; catches real violations live — and **both** the g(k) and calendar checks are re-derived **on-chain** by our Move package (`ArbitrageFlagged` / `CalendarArbFlagged`)
 - **Edge** — protocol N(d2) vs smile-consistent digital prices, heatmap vs half-spread
 - **Proof** — *run the bit-exactness proof yourself*: atomic devInspect snapshots quoted against our mirror, expect `0 units`
 - **Vault** — PLP snapshot + 20,000-path **skew-aware** Monte-Carlo of the reconstructed strike book (terminal prices drawn from the full smile-implied density), cross-checked against an independent analytic route ([`mc_validate.py`](research/mc_validate.py)), in-browser

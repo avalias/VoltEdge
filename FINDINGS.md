@@ -88,11 +88,13 @@ wings equity, not the binaries-only series.
 
 - **For the DeepBook team:** a continuous, independent calibration + no-arb
   watchdog over the BlockScholes feed (the natural "watchdog retainer" pitch).
-  The butterfly leg of that watchdog is now **on-chain**: `voltedge_attestor`
-  recomputes Gatheral's `g(k)` with the protocol's own math and emits
-  `ArbitrageFlagged` when `g(k) < 0` (package
-  `0xdae37107…1dcf`, verified bit-exact 32/32 vs the off-chain mirror). The
-  protocol stores the SVI surface but never checks it for static arbitrage.
+  **Both** legs of that watchdog are now **on-chain**: `voltedge_attestor`
+  recomputes, with the protocol's own math, Gatheral's `g(k)` (emits
+  `ArbitrageFlagged` when `g(k) < 0`) AND the calendar spread
+  `w_near(k) − w_far(k)` across expiries (emits `CalendarArbFlagged` when
+  `w_near > w_far` — directly the cross-tier calendar finding above) (package
+  `0xe3c44c68…23ad`, verified bit-exact, 0 units, vs the off-chain mirror). The
+  protocol stores the SVI surface but never checks it for arbitrage.
 - **For LPs and bettors:** a stale or internally-inconsistent feed can quietly
   mis-price bets and the vault's risk — VoltEdge makes that visible.
 - **For BlockScholes (the feed vendor):** the calibration finding (the realized

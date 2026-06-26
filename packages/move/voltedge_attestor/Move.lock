@@ -43,4 +43,4 @@ deps = { deepbook = "deepbook", deepbook_predict = "deepbook_predict", std = "Mo
 [env.testnet]
 chain-id = "4c78adac"
 original-published-id = "0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d"
-latest-published-id = "0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf"
+latest-published-id = "0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad"

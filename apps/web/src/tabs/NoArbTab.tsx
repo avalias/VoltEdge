@@ -16,30 +16,37 @@ import {
 import { Sparkline } from '../components/Sparkline';
 import type { Slice } from '../lib/slices';
 import { fmtDur, fmtMargin } from '../lib/format';
-import { ATTESTOR_PACKAGE_ID_V2, NOARB_EVENT_TX, SUISCAN } from '../lib/proofConstants';
+import {
+  ATTESTOR_PACKAGE_ID_V2,
+  CALENDAR_EVENT_TX,
+  NOARB_EVENT_TX,
+  SUISCAN,
+} from '../lib/proofConstants';
 
 const trunc = (s: string) => `${s.slice(0, 6)}…${s.slice(-4)}`;
 
-/** The same Gatheral g(k) butterfly check, recomputed ON-CHAIN by VoltEdge's
- * deployed Move package with the protocol's OWN math — the no-arb watchdog
- * anchored on-chain, emitting ArbitrageFlagged. */
+/** BOTH no-arb checks above — butterfly g(k) AND calendar variance
+ * monotonicity — recomputed ON-CHAIN by VoltEdge's deployed Move package with
+ * the protocol's OWN math, emitting ArbitrageFlagged / CalendarArbFlagged. */
 function OnChainNoArbPanel() {
   return (
     <div className="panel">
       <div className="panel-head">
         <span className="panel-title">ON-CHAIN NO-ARB ATTESTATION ⛓</span>
         <span className="chip chip--ok">
-          <span className="dot" /> 32/32 on-chain g = mirror · 0 units
+          <span className="dot" /> butterfly + calendar = mirror · 0 units · every strike
         </span>
       </div>
       <p className="note" style={{ marginTop: 0 }}>
-        The butterfly density factor <strong>g(k)</strong> above is not just an off-chain
-        analytic — VoltEdge&apos;s deployed Move package recomputes it{' '}
-        <strong>on-chain</strong>, in fixed-point, with the protocol&apos;s own
-        <code> ln / sqrt</code> primitives, and emits <code>ArbitrageFlagged</code> when{' '}
-        g(k) &lt; 0. The protocol stores the SVI surface but never checks it for arbitrage;
-        this is that watchdog, anchored on the chain. Verified bit-exact (32/32 strikes, max
-        diff 0 units) against this in-browser computation on live BTC oracles.
+        The two checks above aren&apos;t just off-chain analytics — VoltEdge&apos;s deployed
+        Move package recomputes <strong>both</strong> on-chain, in fixed-point, with the
+        protocol&apos;s own <code>ln / sqrt</code> primitives: the butterfly density{' '}
+        <strong>g(k)</strong> (emits <code>ArbitrageFlagged</code> when g(k) &lt; 0) and the
+        calendar spread <strong>w_near(k) − w_far(k)</strong> across two expiries (emits{' '}
+        <code>CalendarArbFlagged</code> when w_near &gt; w_far). The protocol stores the SVI
+        surface but never checks it for arbitrage; this is that watchdog, anchored on the
+        chain — verified bit-exact (0 units) against this in-browser computation on live BTC
+        oracles.
       </p>
       <div className="chip-strip">
         <a className="chip chip--dim" target="_blank" rel="noreferrer"
@@ -48,7 +55,11 @@ function OnChainNoArbPanel() {
         </a>
         <a className="chip chip--dim" target="_blank" rel="noreferrer"
           href={`${SUISCAN}/tx/${NOARB_EVENT_TX}`}>
-          ArbitrageFlagged event ↗
+          ArbitrageFlagged ↗
+        </a>
+        <a className="chip chip--dim" target="_blank" rel="noreferrer"
+          href={`${SUISCAN}/tx/${CALENDAR_EVENT_TX}`}>
+          CalendarArbFlagged ↗
         </a>
       </div>
     </div>

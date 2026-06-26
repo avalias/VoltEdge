@@ -18,13 +18,17 @@ export const ATTESTOR_PACKAGE_ID =
 /** A real FairPriceAttested event (permanent on-chain attestation). */
 export const ATTESTOR_EVENT_TX = 'Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq';
 
-/** Upgraded attestor package — adds the on-chain NO-ARBITRAGE check:
- * Gatheral g(k) (butterfly density) recomputed on-chain with the protocol's
- * own math, emitting ArbitrageFlagged. Call g_for_strike / attest_no_arb here. */
+/** Upgraded attestor package — adds the on-chain NO-ARBITRAGE checks:
+ * Gatheral g(k) butterfly density AND calendar variance monotonicity, both
+ * recomputed on-chain with the protocol's own math, emitting ArbitrageFlagged /
+ * CalendarArbFlagged. Call g_for_strike / attest_no_arb / calendar_spread /
+ * attest_calendar here. */
 export const ATTESTOR_PACKAGE_ID_V2 =
-  '0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf';
-/** A real ArbitrageFlagged event (on-chain no-arb attestation; g>0 ⇒ no arb). */
+  '0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad';
+/** A real ArbitrageFlagged event (on-chain butterfly attestation; g>0 ⇒ no arb). */
 export const NOARB_EVENT_TX = '86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf';
+/** A real CalendarArbFlagged event (on-chain calendar attestation; w_near<w_far ⇒ ok). */
+export const CALENDAR_EVENT_TX = 'Giup5YF1RNKJ3fW4VkGbzwPnp46ihaZUB2ZYjQgxJw3S';
 
 export const SUISCAN = 'https://suiscan.xyz/testnet';
 /** The shared Predict object (one per deployment). */

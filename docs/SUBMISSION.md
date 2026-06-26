@@ -66,8 +66,9 @@ inverse, finite-difference SVI derivatives, call-spread-limit digitals).
 - Deployment proof (Sui testnet):
   - **`voltedge_attestor` package `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d`** (publish tx `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU`)
   - on-chain `FairPriceAttested` event `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq`
-  - **upgraded package `0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf`** (upgrade txs `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` add `g(k)`, `G9YchsNJRS2APeQePPjoYChxiv2MothbNJMki5fyrith` add degenerate-slice guards) — adds the on-chain no-arb check (Gatheral `g(k)`)
+  - **upgraded package `0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad`** — adds BOTH on-chain no-arb checks (Gatheral butterfly `g(k)` + calendar variance monotonicity); upgrade txs `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` (g(k)), `G9YchsNJRS2APeQePPjoYChxiv2MothbNJMki5fyrith` (guards), `21qKxiC3J9QNRKUu3kJ9kcWEgCSzkcwQZrR8CGRf7jBW` (calendar)
   - on-chain `ArbitrageFlagged` event `86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf`
+  - on-chain `CalendarArbFlagged` event `Giup5YF1RNKJ3fW4VkGbzwPnp46ihaZUB2ZYjQgxJw3S`
   - PredictManager `0xe2ad1c2a75a5f4798a2ef38bdc8bc53a6084d03503cdb84baffd1f0c03861cc3`
   - first barbell mint `2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip`
   - settlement sweep `2i49HrGQ6qVtTZxVQXb9KTQj1g5XKDXuTkBVJeJCNVWy`
@@ -84,9 +85,10 @@ inverse, finite-difference SVI derivatives, call-spread-limit digitals).
   an op-for-op transcription of the protocol's private `oracle::compute_nd2`, and
   emits a `FairPriceAttested` event. **Verified bit-exact (22/22, 0 units)**
   against our TS mirror on live oracles. The upgraded package
-  `0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf` adds an
-  **on-chain no-arbitrage check** — Gatheral's butterfly density `g(k)`
+  `0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad` adds an
+  **on-chain no-arbitrage watchdog in BOTH dimensions** — Gatheral's butterfly
+  density `g(k)` AND calendar variance monotonicity `w_near(k) ≤ w_far(k)`,
   recomputed on-chain (the protocol stores SVI but never checks it for arb),
-  emitting `ArbitrageFlagged`; **verified bit-exact (32/32, 0 units, signs match)**.
-  Built on the official Predict package
+  emitting `ArbitrageFlagged` / `CalendarArbFlagged`; **verified bit-exact (0
+  units, signs match)** on live oracles. Built on the official Predict package
   `0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138`.

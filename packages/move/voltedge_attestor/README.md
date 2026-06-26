@@ -5,19 +5,23 @@ on-chain integer pricing pipeline (`packages/core/fixedpoint.ts`). This package
 promotes that mirror **on-chain**: a Move module that re-derives quantities for a
 live oracle and emits permanent, auditable events — the "oracle-of-the-oracle."
 
-Two attestations:
+Three attestations:
 
 1. **Fair price** — re-derive the binary UP price `N(d2)` and emit
    `FairPriceAttested`.
-2. **No-arbitrage** — recompute Gatheral's butterfly density factor `g(k)`
-   on-chain and emit `ArbitrageFlagged` when `g(k) < 0`. *The protocol stores the
-   SVI surface but never checks it for static arbitrage; this is that watchdog,
-   anchored on the chain.*
+2. **No-arbitrage, butterfly** — recompute Gatheral's butterfly density factor
+   `g(k)` on-chain and emit `ArbitrageFlagged` when `g(k) < 0`.
+3. **No-arbitrage, calendar** — recompute the across-expiry variance spread
+   `w_near(k) − w_far(k)` for two same-underlying oracles and emit
+   `CalendarArbFlagged` when `w_near > w_far` (variance must not decrease with
+   expiry). *The protocol stores the SVI surface but never checks it for
+   arbitrage in either dimension; this is that watchdog, anchored on the chain.*
 
-Both re-derive using the **protocol's own `public` math primitives**
+All re-derive using the **protocol's own `public` math primitives**
 (`deepbook_predict::math::{ln, sqrt, normal_cdf}`, `::i64`, `deepbook::math`).
 The fair-price path is an op-for-op transcription of the protocol's **private**
-`oracle::compute_nd2`; the `g(k)` path mirrors `fixedpoint.ts::gFunctionFixed`.
+`oracle::compute_nd2`; the `g(k)` path mirrors `fixedpoint.ts::gFunctionFixed`;
+the calendar path mirrors `totalVarianceFixed(near,k) − totalVarianceFixed(far,k)`.
 So each attestation is computed with the chain's own functions — structural
 parity, not an assertion.
 
@@ -26,13 +30,15 @@ parity, not an assertion.
 | | |
 |---|---|
 | **Package ID** (original) | `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d` |
-| **Package ID** (upgraded, adds `g(k)` + degenerate-slice guards) | `0xdae37107a1c7d8bc62fe70586e55b88c11846c3d12e2c48807961b14d4041dcf` |
+| **Package ID** (latest — `g(k)`, calendar, guards) | `0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad` |
 | Publish tx | `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU` |
 | Upgrade tx (add `g(k)`) | `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` |
 | Upgrade tx (degenerate-slice guards) | `G9YchsNJRS2APeQePPjoYChxiv2MothbNJMki5fyrith` |
+| Upgrade tx (add calendar check) | `21qKxiC3J9QNRKUu3kJ9kcWEgCSzkcwQZrR8CGRf7jBW` |
 | UpgradeCap | `0xd7a7956a692882f679e08017575309c6e99205da50ef31eda15e40127a73aa36` |
 | Example `FairPriceAttested` event | `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq` |
 | Example `ArbitrageFlagged` event | `86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf` |
+| Example `CalendarArbFlagged` event | `Giup5YF1RNKJ3fW4VkGbzwPnp46ihaZUB2ZYjQgxJw3S` |
 
 ## API (`module voltedge_attestor::attestor`)
 
@@ -56,6 +62,17 @@ parity, not an assertion.
   of `fixedpoint.ts::gFunctionFixed`. `g(k) = (1 − k·w'/2w)² − (w'²/4)(1/w+1/4) +
   w''/2`, with `w, w', w''` the SVI total variance and its first two derivatives.
 
+**No-arbitrage, calendar**
+- `attest_calendar(near: &OracleSVI, far: &OracleSVI, strike: u64)` — compute
+  `w_near(k) − w_far(k)` at `k = ln(strike/near_forward)` and emit
+  `CalendarArbFlagged { near_id, far_id, strike, k_*, w_near, w_far, spread_*,
+  arb, checker_version }`. Guards same-underlying + `near.expiry < far.expiry`
+  (read from the oracles' getters); `arb == true` ⇒ `w_near > w_far`.
+- `calendar_spread(near, far, strike): I64` — same, returns the signed spread
+  (for `devInspect` / difftests, no event).
+- `calendar_spread_from_params(near_params…, far_params…, k): I64` — pure core,
+  mirrors `totalVarianceFixed(near,k) − totalVarianceFixed(far,k)`.
+
 ## Verification — bit-exact against the TypeScript mirror
 
 `packages/chain/scripts/difftest-attestor.ts` reads, **in one atomic
@@ -72,19 +89,31 @@ VERDICT: the DEPLOYED Move attestor is BIT-EXACT vs the mirror (and thus the cha
 `gFunctionFixed`, comparing both magnitude and sign over a wide strike fan:
 
 ```
-on-chain g vs TS mirror: 32/32 EXACT, 32/32 sign-match (max |diff| 0 units)
+on-chain g vs TS mirror: 46/46 EXACT, 46/46 sign-match (max |diff| 0 units)
 VERDICT: the DEPLOYED on-chain no-arb check is BIT-EXACT vs the TS mirror.
 ```
 
-(The snapshot must be atomic: the keeper pushes a new SVI every ~6.6 s, so a
-non-atomic read shows races, not discrepancies.)
+`packages/chain/scripts/difftest-calendar.ts` does the same for the calendar
+spread against `totalVarianceFixed(near) − totalVarianceFixed(far)`, over
+same-underlying near→far oracle pairs:
 
-Move unit tests (`sui move test`): 10/10 — the `Φ(0) = 500_000_000` anchor, ATM
-`N(d2) < 0.5`, strike-monotonicity, `EZeroForward`; plus `g(0) > 0` on a sane
-ATM surface, `g(k) < 0` flagged on a steep-wing butterfly-arb slice, the
-`EZeroGVariance` abort, and two degenerate-slice guards (`EDegenerateSlice`:
+```
+on-chain spread vs TS mirror: 28/28 EXACT, 28/28 sign-match (max |diff| 0 units)
+VERDICT: the DEPLOYED on-chain calendar check is BIT-EXACT vs the TS mirror.
+```
+
+(The snapshot must be atomic: the keeper pushes a new SVI every ~6.6 s, so a
+non-atomic read shows races, not discrepancies. Per-run strike counts vary with
+the number of live oracles; the 0-unit invariant does not.)
+
+Move unit tests (`sui move test`): 12/12 — the `Φ(0) = 500_000_000` anchor, ATM
+`N(d2) < 0.5`, strike-monotonicity, `EZeroForward`; `g(0) > 0` on a sane ATM
+surface, `g(k) < 0` flagged on a steep-wing butterfly-arb slice, the
+`EZeroGVariance` abort, two degenerate-slice guards (`EDegenerateSlice`:
 tiny-σ ATM where the `s^1.5` denominator underflows, and σ=0 ATM where the
-derivative divides by a zero root — named guards, never a raw VM div-by-zero).
+derivative divides by a zero root — named guards, never a raw VM div-by-zero);
+plus calendar healthy (`w_near < w_far`) and calendar-arb (`w_near > w_far`)
+sign cases.
 
 ## Build & deploy
 
