@@ -32,8 +32,17 @@ import type {
 export const DEFAULT_MANAGER_ID =
   '0xe2ad1c2a75a5f4798a2ef38bdc8bc53a6084d03503cdb84baffd1f0c03861cc3';
 
-/** Per the indexer routes spec: recent-events window for the trade log. */
-const EVENT_LIMIT = 200;
+/**
+ * Event fetch window. The trade log only needs the most recent rows, but the
+ * combined-equity track record (buildCombinedEquity) reconstructs CUMULATIVE
+ * realized PnL from EVERY settlement — so this must span the manager's whole
+ * lifetime, not a recent slice. A 200-row cap silently truncated the curve to
+ * the last ~33 cycles and undercounted realized PnL ~4× (e.g. it saw only
+ * $656 of $1,200 in range payouts). The indexer has no offset pagination but
+ * returns all rows up to `limit`, so we ask for far more than the lifetime
+ * event count (the response carries only the rows that actually exist).
+ */
+const EVENT_LIMIT = 20_000;
 
 // ---------------------------------------------------------------------------
 // Response shapes
