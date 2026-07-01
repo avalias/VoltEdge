@@ -33,6 +33,18 @@ export const DEFAULT_MANAGER_ID =
   '0xe2ad1c2a75a5f4798a2ef38bdc8bc53a6084d03503cdb84baffd1f0c03861cc3';
 
 /**
+ * Total NET dUSDC deposited into DEFAULT_MANAGER, verifiable on-chain: exactly
+ * ONE deposit of $400 (tx below), zero withdrawals — confirmed by scanning the
+ * protocol's `predict_manager::deposit`/`withdraw` streams. dUSDC can only enter
+ * a BalanceManager via a deposit (owner) or a protocol payout, so the live
+ * account value minus this figure is the PROVABLE P&L: no claim, just the
+ * arithmetic `on-chain balance − deposits`, reproducible by anyone.
+ * (Applies to DEFAULT_MANAGER only; a custom manager has no known deposit base.)
+ */
+export const MANAGER_DEPOSITS_USD = 400;
+export const MANAGER_DEPOSIT_TX = '7iXRyzZfwKJDdLheczC5zWvvNJamQw9x3Enj4PnPX6f3';
+
+/**
  * Event fetch window. The trade log only needs the most recent rows, but the
  * combined-equity track record (buildCombinedEquity) reconstructs CUMULATIVE
  * realized PnL from EVERY settlement — so this must span the manager's whole

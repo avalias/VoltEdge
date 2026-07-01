@@ -10,9 +10,11 @@
  * client-side from the range mint/redeem events (lib/manager.ts netRanges).
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   DEFAULT_MANAGER_ID,
+  MANAGER_DEPOSITS_USD,
+  MANAGER_DEPOSIT_TX,
   buildCombinedEquity,
   buildTradeLog,
   lastEntryMs,
@@ -50,6 +52,16 @@ function WarnChip({ label, error }: { label: string; error: string | null }) {
   return (
     <span className="chip chip--warn">
       ⚠ {label}: {error.slice(0, 60)}
+    </span>
+  );
+}
+
+/** One term of the provable-P&L equation: big number over a dim caption. */
+function ProvTerm({ label, strong = false, children }: { label: string; strong?: boolean; children: ReactNode }) {
+  return (
+    <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: strong ? 27 : 22, fontWeight: 600, lineHeight: 1.1 }}>{children}</span>
+      <span className="dim" style={{ fontSize: 11 }}>{label}</span>
     </span>
   );
 }
@@ -411,6 +423,67 @@ export function LadderTab() {
           </div>
         )}
       </div>
+
+      {/* ---- provable P&L: on-chain account value − deposits, verifiable ---- */}
+      {s !== null && managerId === DEFAULT_MANAGER_ID && (
+        <div className="panel">
+          <div className="panel-head">
+            <span className="panel-title">PROVABLE P&amp;L ⛓</span>
+            <span className="chip chip--ok">
+              <span className="dot" /> not a claim — arithmetic on-chain
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 18,
+              flexWrap: 'wrap',
+              margin: '6px 0 14px',
+            }}
+          >
+            <ProvTerm label="account value · live on-chain">
+              {fmtUsd(s.account_value / QTY_SCALING)}
+            </ProvTerm>
+            <span style={{ fontSize: 22, opacity: 0.45 }}>−</span>
+            <ProvTerm label="total deposits · one tx">{fmtUsd(MANAGER_DEPOSITS_USD)}</ProvTerm>
+            <span style={{ fontSize: 22, opacity: 0.45 }}>=</span>
+            <ProvTerm
+              strong
+              label={`realized + unrealized · +${(
+                (s.account_value / QTY_SCALING / MANAGER_DEPOSITS_USD - 1) *
+                100
+              ).toFixed(1)}% on capital`}
+            >
+              <PnlVal x={s.account_value / QTY_SCALING - MANAGER_DEPOSITS_USD} dp={2} />
+            </ProvTerm>
+          </div>
+          <p className="note" style={{ marginTop: 0 }}>
+            No trust required: dUSDC can only enter a BalanceManager via a deposit (owner) or
+            a protocol payout — so the manager&apos;s live value minus what was deposited{' '}
+            <strong>is</strong> the P&amp;L. Both numbers are on-chain; verify them yourself.
+            (The equity curve below traces how that P&amp;L accrued, settlement by settlement.)
+          </p>
+          <div className="chip-strip">
+            <a
+              className="chip chip--dim"
+              target="_blank"
+              rel="noreferrer"
+              href={`https://suiscan.xyz/testnet/object/${DEFAULT_MANAGER_ID}`}
+            >
+              manager · account value ↗
+            </a>
+            <a
+              className="chip chip--dim"
+              target="_blank"
+              rel="noreferrer"
+              href={`${SUISCAN_TX}${MANAGER_DEPOSIT_TX}`}
+            >
+              $400 deposit tx ↗
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* ---- equity curve ---- */}
       <div className="panel">
