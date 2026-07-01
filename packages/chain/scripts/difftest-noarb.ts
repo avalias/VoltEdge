@@ -22,7 +22,7 @@ import { inspectOracleQuoted } from '../src/inspect.js';
 import { INDEXER_URL } from '../src/constants.js';
 
 // Upgraded attestor package (the version that carries g_for_strike / attest_no_arb).
-const ATTESTOR = '0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad';
+const ATTESTOR = '0x802e7c37debb860fe7902f2003ba8431741da3fbc36c8725cb63eb50be8840f0';
 const PREDICT = '0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138';
 const SENDER = '0x90c072c21af202fd88fc206116cabdd3302418cc14fa2830b50cf28ad7d9592c';
 

@@ -25,16 +25,27 @@ the calendar path mirrors `totalVarianceFixed(near,k) − totalVarianceFixed(far
 So each attestation is computed with the chain's own functions — structural
 parity, not an assertion.
 
+Beyond the read-only attestations, the package ships an **on-chain slippage
+guard** (`module voltedge_attestor::guard`). The protocol's `mint` / `mint_range`
+charge the current (post-trade) price with **no cost ceiling**, so an adverse SVI
+move between an off-chain signal and execution fills at whatever the surface
+implies. `safe_mint` composes the protocol's **own** quote and mint
+**atomically** — it reads `get_trade_amounts` in the same transaction the mint
+uses, `assert!(cost <= max_cost, ESlippage)`, and only then mints. One tx, no
+snapshot race, no fill past `max_cost`. Demonstrated live via devInspect (see
+below): mints within the ceiling, reverts one unit past it.
+
 ## Deployed (Sui testnet)
 
 | | |
 |---|---|
 | **Package ID** (original) | `0xa5df8faa096b8ed9e88ea4d8cd7f639f5479d119520ea63f2e3a74ac13d70b8d` |
-| **Package ID** (latest — `g(k)`, calendar, guards) | `0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad` |
+| **Package ID** (latest — attestations + `guard`) | `0x802e7c37debb860fe7902f2003ba8431741da3fbc36c8725cb63eb50be8840f0` |
 | Publish tx | `PB2fbytuwhDBuGs4RippBvUkp3aLiSTtEeZuqN5ZwLU` |
 | Upgrade tx (add `g(k)`) | `Cashm4pJKXPkrXyLFnfAgy5J48ykyDcGQjiAUVT4vWCU` |
 | Upgrade tx (degenerate-slice guards) | `G9YchsNJRS2APeQePPjoYChxiv2MothbNJMki5fyrith` |
 | Upgrade tx (add calendar check) | `21qKxiC3J9QNRKUu3kJ9kcWEgCSzkcwQZrR8CGRf7jBW` |
+| Upgrade tx (add `guard` / `safe_mint`) | `MyGZyX55SL4MM2vMisZxtpQ1UnJhSWcGHFe9Gg3oGs8` |
 | UpgradeCap | `0xd7a7956a692882f679e08017575309c6e99205da50ef31eda15e40127a73aa36` |
 | Example `FairPriceAttested` event | `Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq` |
 | Example `ArbitrageFlagged` event | `86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf` |
@@ -73,6 +84,16 @@ parity, not an assertion.
 - `calendar_spread_from_params(near_params…, far_params…, k): I64` — pure core,
   mirrors `totalVarianceFixed(near,k) − totalVarianceFixed(far,k)`.
 
+## API (`module voltedge_attestor::guard`)
+
+- `safe_mint<Quote>(predict, manager, oracle, key: MarketKey, quantity, max_cost,
+  clock, ctx)` — quote the live cost via `get_trade_amounts`, `assert!(cost <=
+  max_cost, ESlippage)`, then `predict::mint`. Atomic; `ctx.sender()` is
+  preserved so the protocol's owner-gate still applies.
+- `safe_mint_range<Quote>(…, max_cost, …)` — same for a vertical range leg.
+- `quote_mint_cost(predict, oracle, key, quantity, clock): u64` /
+  `quote_range_mint_cost(…)` — read-only live cost, so a caller can set `max_cost`.
+
 ## Verification — bit-exact against the TypeScript mirror
 
 `packages/chain/scripts/difftest-attestor.ts` reads, **in one atomic
@@ -105,6 +126,18 @@ VERDICT: the DEPLOYED on-chain calendar check is BIT-EXACT vs the TS mirror.
 (The snapshot must be atomic: the keeper pushes a new SVI every ~6.6 s, so a
 non-atomic read shows races, not discrepancies. Per-run strike counts vary with
 the number of live oracles; the 0-unit invariant does not.)
+
+`packages/chain/scripts/guard-demo.ts` proves the `safe_mint` slippage guard on
+a live oracle via devInspect (dry-run — no position is created, the live track
+record is untouched):
+
+```
+live mint cost (get_trade_amounts) = $5.1302
+safe_mint(max_cost = cost + $1.00)  -> success ✓ mints
+safe_mint(max_cost = cost − 1 unit) -> failure ✓ ESlippage abort
+safe_mint(max_cost = $0.000001)     -> failure ✓ ESlippage abort
+VERDICT: safe_mint mints within the ceiling and reverts past it — no fill above max_cost.
+```
 
 Move unit tests (`sui move test`): 12/12 — the `Φ(0) = 500_000_000` anchor, ATM
 `N(d2) < 0.5`, strike-monotonicity, `EZeroForward`; `g(0) > 0` on a sane ATM

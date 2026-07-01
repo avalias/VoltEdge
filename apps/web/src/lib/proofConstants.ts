@@ -24,7 +24,7 @@ export const ATTESTOR_EVENT_TX = 'Bps3xsnJRpusG6uMXZGCiK2imF752WxQe5hyTqj4K8Hq';
  * CalendarArbFlagged. Call g_for_strike / attest_no_arb / calendar_spread /
  * attest_calendar here. */
 export const ATTESTOR_PACKAGE_ID_V2 =
-  '0xe3c44c6821d43badd91ddffefc1dd6aa80683648a707b9554cedbb3642ad23ad';
+  '0x802e7c37debb860fe7902f2003ba8431741da3fbc36c8725cb63eb50be8840f0';
 /** A real ArbitrageFlagged event (on-chain butterfly attestation; g>0 ⇒ no arb). */
 export const NOARB_EVENT_TX = '86gxPiTH7vPaFbMhWy98m1xSmGB6WaLtwUsB4tYkhYZf';
 /** A real CalendarArbFlagged event (on-chain calendar attestation; w_near<w_far ⇒ ok). */
