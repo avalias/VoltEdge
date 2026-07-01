@@ -7,7 +7,7 @@ name: CI
 on:
   pull_request: {}
   push:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -21,6 +21,17 @@ jobs:
       - run: npm test # core (incl. offline mirror golden) + strategy
       - run: npm run typecheck -w packages/core -w packages/chain -w packages/strategy
       - run: npm run build -w apps/web # tsc -b + vite build
+
+      # Gate the skew-aware vault MC against its INDEPENDENT analytic route.
+      # Regenerate the fixture from the CURRENT mc.ts, then let the Python route
+      # (exact comonotone payout distribution via a finite-difference digital)
+      # check it — any change to the MC engine that breaks the agreement fails CI.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install --quiet numpy scipy
+      - run: npx tsx packages/chain/scripts/dump-mc-fixture.ts
+      - run: python research/mc_validate.py
 
 # Move package tests run manually (the attestor links against the live Predict
 # protocol sources, which live in the vendored checkout, not this repo):
