@@ -21,6 +21,7 @@ and an autonomous strategy trading on Sui testnet with on-chain receipts.**
 | The mirror, promoted **on-chain** | our deployed Move package [`voltedge_attestor`](packages/move/voltedge_attestor) (`0xa5df8faa…0b8d`) re-derives `N(d2)` using the protocol's own public math and emits a `FairPriceAttested` event — **22/22 bit-exact (0 units)** vs the mirror on live oracles |
 | The **no-arb watchdog, on-chain** (both dimensions) | the upgraded package (`0xe3c44c68…23ad`) recomputes **both** no-arb checks **on-chain** with the protocol's own math: butterfly density `g(k)` (`ArbitrageFlagged` when `g < 0`) and calendar variance monotonicity `w_near(k) ≤ w_far(k)` across expiries (`CalendarArbFlagged` when `w_near > w_far`) — **bit-exact, 0 units** vs the mirror on live oracles (representative runs: 32–46/× butterfly, 28/28 calendar). *The protocol stores the SVI surface but never checks it for arbitrage.* |
 | Live execution matches the mirror | first live mint within **1e-6** of prediction ([tx](https://suiscan.xyz/testnet/tx/2Udm7NxHdnqettS5LaN3MVviis6jroDdxWbw5FxMHsip)) |
+| **Provable** live track record | the bot's manager is up **~+80% on its $400 deposit** — not a claim: it's the manager's on-chain **account value − deposits** (one $400 deposit, zero withdrawals), verifiable on Suiscan and in the browser (**Ladder tab → Provable P&L**). Updates live as it trades. |
 | The feed misprices the distribution's *shape* | mature-era backtest (n=2,369 of 2,620): ATM band hits **46.9%** vs **38.2%** implied → **+7.7%/$1 after spread** (t = 7.5); +6.7% (t=6.9) on the full sample |
 | Real protocol findings | cross-tier calendar arbitrage (live), settlement delays up to **8.7h**, SVI-staleness gate gap, indexer range-PnL blind spot |
 | Tests | **61 test definitions** parametrizing **~283 runtime cases** — 245 are golden-vector rows checked against *independent routes* (scipy CDF/PDF/inverse, finite-difference SVI derivatives, call-spread-limit digitals) |
@@ -29,6 +30,12 @@ and an autonomous strategy trading on Sui testnet with on-chain receipts.**
 <img src="docs/charts/weekly_edge.png" width="640" alt="weekly edge" />
 <br/><em>The barbell: ATM band carries calm weeks, far wings carry the crash week.</em>
 </div>
+
+## Who it's for
+
+- **The DeepBook Predict team** — a continuous, **on-chain** no-arbitrage watchdog over the BlockScholes volatility feed. Our deployed Move package re-checks the live surface for butterfly and calendar arbitrage every poll and emits `ArbitrageFlagged` / `CalendarArbFlagged` — events anyone can subscribe to. The protocol stores the SVI surface but never checks it; this is the monitoring layer a new derivatives primitive needs, and it has already surfaced real issues on the live feed.
+- **PLP liquidity providers** — the **Vault** tab is a risk console for the people funding the counterparty pool: a skew-aware Monte-Carlo of the reconstructed strike book, P(exposure > 80% of balance), tail-loss quantiles, cross-checked against an independent analytic route. See your exposure, don't guess it.
+- **Volatility traders** — the **edge**: where the feed misprices the distribution's *shape* (butterfly / calendar / skew), quantified per strike, harvested by an autonomous barbell — **provably up ~+80% on $400** on testnet (`account value − deposits`, on-chain).
 
 ## What's inside
 
